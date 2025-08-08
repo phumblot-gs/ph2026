@@ -5,8 +5,8 @@ import "./globals.css"
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "Paul Hatte 2026 - Pour un Paris qui nous ressemble",
-  description: "Rejoignez le mouvement de Paul Hatte pour les élections municipales de Paris 2026",
+  title: `${process.env.NEXT_PUBLIC_PARTY_NAME || 'PH2026'} - ${process.env.NEXT_PUBLIC_CANDIDATE_NAME || 'Paul Hatte'} - Pour un Paris qui nous ressemble`,
+  description: `Rejoignez le mouvement de ${process.env.NEXT_PUBLIC_CANDIDATE_NAME || 'Paul Hatte'} pour les élections municipales de Paris 2026`,
 }
 
 export default function RootLayout({

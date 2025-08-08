@@ -229,6 +229,11 @@ ph2026/
 
 ### 9.2 Historique des modifications
 - **2025-08-08**: Création initiale de la documentation
+- **2025-08-08**: Configuration Supabase ajoutée
+  - Schéma de base de données créé
+  - Authentification configurée
+  - Back-office avec navigation
+  - Système de configuration pour nom du parti
 
 ## 10. Ressources
 

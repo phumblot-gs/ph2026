@@ -2,6 +2,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { ArrowRight, Calendar, Users, MapPin } from "lucide-react"
+import { config } from "@/lib/config"
 
 export default function Home() {
   return (
@@ -10,10 +11,10 @@ export default function Home() {
       <section className="relative h-screen flex items-center justify-center bg-gradient-to-b from-stone-50 to-white">
         <div className="container mx-auto px-4 text-center">
           <h1 className="text-5xl md:text-7xl font-serif font-light mb-6">
-            Paul Hatte
+            {config.party.candidate}
           </h1>
           <p className="text-xl md:text-2xl text-muted-foreground mb-8 max-w-2xl mx-auto">
-            Pour un Paris qui nous ressemble
+            {config.party.slogan}
           </p>
           <p className="text-lg text-muted-foreground mb-12 max-w-3xl mx-auto">
             Ensemble, construisons l'avenir de notre ville. 
@@ -165,9 +166,9 @@ export default function Home() {
         <div className="container mx-auto px-4">
           <div className="flex flex-col md:flex-row justify-between items-center gap-4">
             <div className="text-center md:text-left">
-              <p className="font-serif text-lg mb-2">Paul Hatte 2026</p>
+              <p className="font-serif text-lg mb-2">{config.party.name}</p>
               <p className="text-sm text-muted-foreground">
-                Pour un Paris qui nous ressemble
+                {config.party.slogan}
               </p>
             </div>
             <div className="flex gap-6 text-sm text-muted-foreground">
