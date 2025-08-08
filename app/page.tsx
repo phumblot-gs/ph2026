@@ -11,22 +11,18 @@ export default function Home() {
       <section className="relative h-screen flex items-center justify-center bg-gradient-to-b from-stone-50 to-white">
         <div className="container mx-auto px-4 text-center">
           <h1 className="text-5xl md:text-7xl font-serif font-light mb-6">
-            {config.party.candidate}
+            {config.party.name}
           </h1>
           <p className="text-xl md:text-2xl text-muted-foreground mb-8 max-w-2xl mx-auto">
             {config.party.slogan}
           </p>
           <p className="text-lg text-muted-foreground mb-12 max-w-3xl mx-auto">
-            Ensemble, construisons l'avenir de notre ville. 
             Rejoignez le mouvement pour les élections municipales de 2026.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Button size="lg" className="group">
-              Découvrir le programme
-              <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
-            </Button>
-            <Button size="lg" variant="outline">
               Nous rejoindre
+              <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
             </Button>
           </div>
         </div>
