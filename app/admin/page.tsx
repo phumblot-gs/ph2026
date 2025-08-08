@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { config } from '@/lib/config'
 import { Users, Contact, Calendar, DollarSign, Map, TrendingUp } from 'lucide-react'
+import PendingMembersAlert from '@/components/admin/PendingMembersAlert'
 
 export default async function AdminDashboard() {
   const supabase = await createClient()
@@ -58,6 +59,9 @@ export default async function AdminDashboard() {
           Bienvenue dans l'espace d'administration {config.party.name}
         </p>
       </div>
+
+      {/* Pending Members Alert */}
+      <PendingMembersAlert />
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">

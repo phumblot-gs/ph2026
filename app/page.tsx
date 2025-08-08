@@ -20,10 +20,12 @@ export default function Home() {
             Rejoignez le mouvement pour les élections municipales de 2026.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Button size="lg" className="group">
-              Nous rejoindre
-              <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
-            </Button>
+            <a href="/join">
+              <Button size="lg" className="group">
+                Nous rejoindre
+                <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
+              </Button>
+            </a>
           </div>
         </div>
       </section>

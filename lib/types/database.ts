@@ -1,4 +1,4 @@
-export type UserRole = 'super_admin' | 'admin' | 'direction' | 'communication' | 'finance' | 'expert' | 'member'
+export type UserRole = 'super_admin' | 'admin' | 'direction' | 'communication' | 'finance' | 'expert' | 'member' | 'pending'
 export type ActionType = 'tractage' | 'porte_a_porte' | 'reunion' | 'stand' | 'autre'
 export type EngagementLevel = 'sympathisant' | 'militant' | 'donateur' | 'benevole_actif'
 

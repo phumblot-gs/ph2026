@@ -19,6 +19,7 @@ import {
   Home,
   Calendar,
   DollarSign,
+  Shield,
 } from 'lucide-react'
 
 interface AdminNavProps {
@@ -39,6 +40,7 @@ export default function AdminNav({ user }: AdminNavProps) {
 
   const navigation = [
     { name: 'Dashboard', href: '/admin', icon: Home },
+    { name: 'Modération', href: '/admin/moderation', icon: Shield, adminOnly: true },
     { name: 'Membres', href: '/admin/members', icon: Users },
     { name: 'Contacts CRM', href: '/admin/contacts', icon: Contact },
     { name: 'Actions terrain', href: '/admin/actions', icon: Map },
