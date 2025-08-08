@@ -36,17 +36,49 @@ export async function updateSession(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser()
 
+  // Si pas d'utilisateur et tentative d'accès aux pages protégées
   if (
     !user &&
     !request.nextUrl.pathname.startsWith('/login') &&
     !request.nextUrl.pathname.startsWith('/auth') &&
+    !request.nextUrl.pathname.startsWith('/join') &&
+    !request.nextUrl.pathname.startsWith('/signup') &&
     (request.nextUrl.pathname.startsWith('/admin') ||
-     request.nextUrl.pathname.startsWith('/dashboard'))
+     request.nextUrl.pathname.startsWith('/dashboard') ||
+     request.nextUrl.pathname.startsWith('/pending'))
   ) {
-    // no user, potentially respond by redirecting the user to the login page
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     return NextResponse.redirect(url)
+  }
+
+  // Si utilisateur connecté, vérifier son rôle
+  if (user) {
+    const { data: member } = await supabase
+      .from('members')
+      .select('role')
+      .eq('user_id', user.id)
+      .single()
+
+    // Si membre pending essaie d'accéder à admin, rediriger vers /pending
+    if (
+      member?.role === 'pending' && 
+      request.nextUrl.pathname.startsWith('/admin')
+    ) {
+      const url = request.nextUrl.clone()
+      url.pathname = '/pending'
+      return NextResponse.redirect(url)
+    }
+
+    // Si membre approuvé essaie d'accéder à /pending, rediriger vers /admin
+    if (
+      member?.role !== 'pending' && 
+      request.nextUrl.pathname === '/pending'
+    ) {
+      const url = request.nextUrl.clone()
+      url.pathname = '/admin'
+      return NextResponse.redirect(url)
+    }
   }
 
   // IMPORTANT: You *must* return the supabaseResponse object as it is. If you're

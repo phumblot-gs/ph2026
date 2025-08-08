@@ -53,7 +53,18 @@ export default function LoginPage() {
       }
 
       if (data?.user) {
-        router.push('/admin')
+        // Vérifier le rôle pour rediriger correctement
+        const { data: member } = await supabase
+          .from('members')
+          .select('role')
+          .eq('user_id', data.user.id)
+          .single()
+        
+        if (member?.role === 'pending') {
+          router.push('/pending')
+        } else {
+          router.push('/admin')
+        }
         router.refresh()
       }
     } catch (error: any) {
