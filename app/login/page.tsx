@@ -23,17 +23,29 @@ export default function LoginPage() {
     setError(null)
 
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       })
 
-      if (error) throw error
+      if (error) {
+        console.error('Login error:', error)
+        throw error
+      }
 
-      router.push('/admin')
-      router.refresh()
+      if (data?.user) {
+        router.push('/admin')
+        router.refresh()
+      }
     } catch (error: any) {
-      setError(error.message || 'Une erreur est survenue')
+      console.error('Auth error:', error)
+      if (error.message === 'Invalid login credentials') {
+        setError('Email ou mot de passe incorrect')
+      } else if (error.message.includes('Email not confirmed')) {
+        setError('Veuillez confirmer votre email avant de vous connecter')
+      } else {
+        setError(error.message || 'Une erreur est survenue')
+      }
     } finally {
       setIsLoading(false)
     }
@@ -134,8 +146,8 @@ export default function LoginPage() {
 
           <p className="text-center text-sm text-muted-foreground mt-6">
             Pas encore membre ?{' '}
-            <a href="/contact" className="font-medium hover:text-primary">
-              Contactez-nous
+            <a href="/signup" className="font-medium hover:text-primary">
+              Créer un compte
             </a>
           </p>
         </CardContent>
