@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Thèmes Shadcn/ui - PH2026</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Instrument+Serif&family=Crimson+Text:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --radius: 0.5rem;
+        }
+        
+        /* Theme 1: Zinc Elegance */
+        .theme-zinc {
+            --background: 0 0% 100%;
+            --foreground: 240 10% 3.9%;
+            --card: 0 0% 100%;
+            --card-foreground: 240 10% 3.9%;
+            --popover: 0 0% 100%;
+            --popover-foreground: 240 10% 3.9%;
+            --primary: 240 5.9% 10%;
+            --primary-foreground: 0 0% 98%;
+            --secondary: 240 4.8% 95.9%;
+            --secondary-foreground: 240 5.9% 10%;
+            --muted: 240 4.8% 95.9%;
+            --muted-foreground: 240 3.8% 46.1%;
+            --accent: 240 4.8% 95.9%;
+            --accent-foreground: 240 5.9% 10%;
+            --destructive: 0 84.2% 60.2%;
+            --destructive-foreground: 0 0% 98%;
+            --border: 240 5.9% 90%;
+            --input: 240 5.9% 90%;
+            --ring: 240 5.9% 10%;
+        }
+
+        /* Theme 2: Navy Professional */
+        .theme-navy {
+            --background: 0 0% 100%;
+            --foreground: 222.2 84% 4.9%;
+            --card: 0 0% 100%;
+            --card-foreground: 222.2 84% 4.9%;
+            --primary: 221.2 83.2% 53.3%;
+            --primary-foreground: 210 40% 98%;
+            --secondary: 210 40% 96.1%;
+            --secondary-foreground: 222.2 47.4% 11.2%;
+            --muted: 210 40% 96.1%;
+            --muted-foreground: 215.4 16.3% 46.9%;
+            --accent: 210 40% 96.1%;
+            --accent-foreground: 222.2 47.4% 11.2%;
+            --border: 214.3 31.8% 91.4%;
+            --input: 214.3 31.8% 91.4%;
+            --ring: 221.2 83.2% 53.3%;
+        }
+
+        /* Theme 3: Emerald Modern */
+        .theme-emerald {
+            --background: 0 0% 100%;
+            --foreground: 240 10% 3.9%;
+            --primary: 142.1 76.2% 36.3%;
+            --primary-foreground: 355.7 100% 97.3%;
+            --secondary: 240 4.8% 95.9%;
+            --secondary-foreground: 240 5.9% 10%;
+            --muted: 240 4.8% 95.9%;
+            --muted-foreground: 240 3.8% 46.1%;
+            --accent: 240 4.8% 95.9%;
+            --accent-foreground: 240 5.9% 10%;
+            --border: 240 5.9% 90%;
+            --input: 240 5.9% 90%;
+            --ring: 142.1 76.2% 36.3%;
+        }
+
+        /* Theme 4: Minimal Stone */
+        .theme-stone {
+            --background: 0 0% 100%;
+            --foreground: 0 0% 3.9%;
+            --primary: 0 0% 9%;
+            --primary-foreground: 0 0% 98%;
+            --secondary: 0 0% 96.1%;
+            --secondary-foreground: 0 0% 9%;
+            --muted: 0 0% 96.1%;
+            --muted-foreground: 0 0% 45.1%;
+            --accent: 0 0% 96.1%;
+            --accent-foreground: 0 0% 9%;
+            --border: 0 0% 89.8%;
+            --input: 0 0% 89.8%;
+            --ring: 0 0% 3.9%;
+        }
+
+        .button {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            white-space: nowrap;
+            border-radius: var(--radius);
+            font-size: 0.875rem;
+            font-weight: 500;
+            transition: all 0.15s;
+            padding: 0.625rem 1.25rem;
+            height: 2.5rem;
+        }
+
+        .button-primary {
+            background: hsl(var(--primary));
+            color: hsl(var(--primary-foreground));
+        }
+
+        .button-primary:hover {
+            opacity: 0.9;
+        }
+
+        .button-secondary {
+            background: hsl(var(--secondary));
+            color: hsl(var(--secondary-foreground));
+        }
+
+        .button-outline {
+            border: 1px solid hsl(var(--border));
+            background: transparent;
+            color: hsl(var(--foreground));
+        }
+
+        .button-ghost {
+            background: transparent;
+            color: hsl(var(--foreground));
+        }
+
+        .button-ghost:hover {
+            background: hsl(var(--accent));
+            color: hsl(var(--accent-foreground));
+        }
+
+        .card {
+            border-radius: calc(var(--radius) + 2px);
+            border: 1px solid hsl(var(--border));
+            background: hsl(var(--card));
+            color: hsl(var(--card-foreground));
+            padding: 1.5rem;
+        }
+
+        .input {
+            flex: 1;
+            border-radius: var(--radius);
+            border: 1px solid hsl(var(--border));
+            background: hsl(var(--background));
+            padding: 0.5rem 0.75rem;
+            font-size: 0.875rem;
+            transition: all 0.15s;
+        }
+
+        .input:focus {
+            outline: none;
+            box-shadow: 0 0 0 2px hsl(var(--ring));
+        }
+
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            border-radius: 9999px;
+            padding: 0.125rem 0.625rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+            background: hsl(var(--secondary));
+            color: hsl(var(--secondary-foreground));
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <div class="max-w-7xl mx-auto p-8">
+        <h1 class="text-4xl font-bold text-gray-900 mb-4">Thèmes Élégants avec Shadcn/ui</h1>
+        <p class="text-gray-600 mb-12">Design system moderne basé sur Radix UI et Tailwind CSS</p>
+
+        <!-- Theme 1: Zinc Elegance -->
+        <div class="mb-16 theme-zinc">
+            <div class="bg-white rounded-xl shadow-sm p-8">
+                <h2 class="text-2xl font-semibold mb-2" style="font-family: 'Inter', sans-serif;">
+                    Thème 1: "Zinc Elegance"
+                </h2>
+                <p class="text-gray-600 mb-8">Minimaliste et sophistiqué. Parfait pour une image moderne et professionnelle.</p>
+                
+                <!-- Components Preview -->
+                <div class="space-y-6">
+                    <!-- Buttons -->
+                    <div>
+                        <h3 class="text-sm font-medium text-gray-500 mb-3">COMPOSANTS</h3>
+                        <div class="flex gap-3 flex-wrap">
+                            <button class="button button-primary">Participer</button>
+                            <button class="button button-secondary">En savoir plus</button>
+                            <button class="button button-outline">Documentation</button>
+                            <button class="button button-ghost">Annuler</button>
+                            <span class="badge">Nouveau</span>
+                        </div>
+                    </div>
+
+                    <!-- Card Example -->
+                    <div class="card max-w-md">
+                        <h3 class="font-semibold mb-2">Réunion publique</h3>
+                        <p class="text-sm opacity-70 mb-4">Venez échanger sur l'avenir de Paris lors de notre prochaine réunion publique.</p>
+                        <div class="flex gap-2">
+                            <button class="button button-primary text-xs h-8">S'inscrire</button>
+                            <button class="button button-ghost text-xs h-8">Plus d'infos</button>
+                        </div>
+                    </div>
+
+                    <!-- Form Elements -->
+                    <div class="max-w-md space-y-3">
+                        <input class="input w-full" placeholder="Votre email" />
+                        <div class="flex gap-2">
+                            <input class="input" placeholder="Prénom" />
+                            <input class="input" placeholder="Nom" />
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Color Palette -->
+                <div class="mt-8 pt-6 border-t">
+                    <h3 class="text-sm font-medium text-gray-500 mb-3">PALETTE</h3>
+                    <div class="flex gap-3">
+                        <div class="text-center">
+                            <div class="w-16 h-16 rounded-lg bg-zinc-900"></div>
+                            <p class="text-xs mt-1">Primary</p>
+                        </div>
+                        <div class="text-center">
+                            <div class="w-16 h-16 rounded-lg bg-zinc-100"></div>
+                            <p class="text-xs mt-1">Secondary</p>
+                        </div>
+                        <div class="text-center">
+                            <div class="w-16 h-16 rounded-lg bg-white border"></div>
+                            <p class="text-xs mt-1">Background</p>
+                        </div>
+                        <div class="text-center">
+                            <div class="w-16 h-16 rounded-lg bg-zinc-200"></div>
+                            <p class="text-xs mt-1">Muted</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Theme 2: Navy Professional -->
+        <div class="mb-16 theme-navy">
+            <div class="bg-white rounded-xl shadow-sm p-8">
+                <h2 class="text-2xl font-semibold mb-2" style="font-family: 'Inter', sans-serif;">
+                    Thème 2: "Navy Professional"
+                </h2>
+                <p class="text-gray-600 mb-8">Confiance et autorité. Idéal pour une communication institutionnelle forte.</p>
+                
+                <!-- Components Preview -->
+                <div class="space-y-6">
+                    <!-- Buttons -->
+                    <div>
+                        <h3 class="text-sm font-medium text-gray-500 mb-3">COMPOSANTS</h3>
+                        <div class="flex gap-3 flex-wrap">
+                            <button class="button button-primary">Nous rejoindre</button>
+                            <button class="button button-secondary">Programme</button>
+                            <button class="button button-outline">Contact</button>
+                            <button class="button button-ghost">Retour</button>
+                            <span class="badge">Urgent</span>
+                        </div>
+                    </div>
+
+                    <!-- Card Example -->
+                    <div class="card max-w-md">
+                        <h3 class="font-semibold mb-2">Mobilisation générale</h3>
+                        <p class="text-sm opacity-70 mb-4">Rejoignez notre mouvement pour transformer Paris ensemble.</p>
+                        <div class="flex gap-2">
+                            <button class="button button-primary text-xs h-8">Adhérer</button>
+                            <button class="button button-ghost text-xs h-8">En savoir plus</button>
+                        </div>
+                    </div>
+
+                    <!-- Form Elements -->
+                    <div class="max-w-md space-y-3">
+                        <input class="input w-full" placeholder="Email professionnel" />
+                        <div class="flex gap-2">
+                            <input class="input" placeholder="Fonction" />
+                            <input class="input" placeholder="Organisation" />
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Color Palette -->
+                <div class="mt-8 pt-6 border-t">
+                    <h3 class="text-sm font-medium text-gray-500 mb-3">PALETTE</h3>
+                    <div class="flex gap-3">
+                        <div class="text-center">
+                            <div class="w-16 h-16 rounded-lg bg-blue-600"></div>
+                            <p class="text-xs mt-1">Primary</p>
+                        </div>
+                        <div class="text-center">
+                            <div class="w-16 h-16 rounded-lg bg-blue-50"></div>
+                            <p class="text-xs mt-1">Secondary</p>
+                        </div>
+                        <div class="text-center">
+                            <div class="w-16 h-16 rounded-lg bg-white border"></div>
+                            <p class="text-xs mt-1">Background</p>
+                        </div>
+                        <div class="text-center">
+                            <div class="w-16 h-16 rounded-lg bg-slate-100"></div>
+                            <p class="text-xs mt-1">Muted</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Theme 3: Emerald Modern -->
+        <div class="mb-16 theme-emerald">
+            <div class="bg-white rounded-xl shadow-sm p-8">
+                <h2 class="text-2xl font-semibold mb-2" style="font-family: 'Inter', sans-serif;">
+                    Thème 3: "Emerald Modern"
+                </h2>
+                <p class="text-gray-600 mb-8">Frais et optimiste. Évoque le renouveau et l'écologie urbaine.</p>
+                
+                <!-- Components Preview -->
+                <div class="space-y-6">
+                    <!-- Buttons -->
+                    <div>
+                        <h3 class="text-sm font-medium text-gray-500 mb-3">COMPOSANTS</h3>
+                        <div class="flex gap-3 flex-wrap">
+                            <button class="button button-primary">S'engager</button>
+                            <button class="button button-secondary">Découvrir</button>
+                            <button class="button button-outline">Newsletter</button>
+                            <button class="button button-ghost">Options</button>
+                            <span class="badge">Écologie</span>
+                        </div>
+                    </div>
+
+                    <!-- Card Example -->
+                    <div class="card max-w-md">
+                        <h3 class="font-semibold mb-2">Paris plus vert</h3>
+                        <p class="text-sm opacity-70 mb-4">Notre plan pour une ville durable et respirable.</p>
+                        <div class="flex gap-2">
+                            <button class="button button-primary text-xs h-8">Lire le plan</button>
+                            <button class="button button-ghost text-xs h-8">Partager</button>
+                        </div>
+                    </div>
+
+                    <!-- Form Elements -->
+                    <div class="max-w-md space-y-3">
+                        <input class="input w-full" placeholder="Votre quartier" />
+                        <div class="flex gap-2">
+                            <input class="input" placeholder="Code postal" />
+                            <input class="input" placeholder="Arrondissement" />
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Color Palette -->
+                <div class="mt-8 pt-6 border-t">
+                    <h3 class="text-sm font-medium text-gray-500 mb-3">PALETTE</h3>
+                    <div class="flex gap-3">
+                        <div class="text-center">
+                            <div class="w-16 h-16 rounded-lg bg-emerald-600"></div>
+                            <p class="text-xs mt-1">Primary</p>
+                        </div>
+                        <div class="text-center">
+                            <div class="w-16 h-16 rounded-lg bg-gray-100"></div>
+                            <p class="text-xs mt-1">Secondary</p>
+                        </div>
+                        <div class="text-center">
+                            <div class="w-16 h-16 rounded-lg bg-white border"></div>
+                            <p class="text-xs mt-1">Background</p>
+                        </div>
+                        <div class="text-center">
+                            <div class="w-16 h-16 rounded-lg bg-emerald-50"></div>
+                            <p class="text-xs mt-1">Accent</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Theme 4: Minimal Stone -->
+        <div class="mb-16 theme-stone">
+            <div class="bg-white rounded-xl shadow-sm p-8">
+                <h2 class="text-2xl font-semibold mb-2" style="font-family: 'Instrument Serif', serif;">
+                    Thème 4: "Minimal Stone"
+                </h2>
+                <p class="text-gray-600 mb-8">Ultra-minimaliste avec une touche éditoriale. Pour une communication épurée.</p>
+                
+                <!-- Components Preview -->
+                <div class="space-y-6">
+                    <!-- Buttons -->
+                    <div>
+                        <h3 class="text-sm font-medium text-gray-500 mb-3 tracking-wider">COMPOSANTS</h3>
+                        <div class="flex gap-3 flex-wrap">
+                            <button class="button button-primary">Adhérer</button>
+                            <button class="button button-secondary">Vision</button>
+                            <button class="button button-outline">Archives</button>
+                            <button class="button button-ghost">Menu</button>
+                            <span class="badge">2026</span>
+                        </div>
+                    </div>
+
+                    <!-- Card Example -->
+                    <div class="card max-w-md">
+                        <h3 class="font-semibold mb-2" style="font-family: 'Instrument Serif', serif;">Notre vision</h3>
+                        <p class="text-sm opacity-70 mb-4">Une nouvelle approche pour gouverner Paris avec vous.</p>
+                        <div class="flex gap-2">
+                            <button class="button button-primary text-xs h-8">Lire</button>
+                            <button class="button button-ghost text-xs h-8">Sauvegarder</button>
+                        </div>
+                    </div>
+
+                    <!-- Form Elements -->
+                    <div class="max-w-md space-y-3">
+                        <input class="input w-full" placeholder="Email" />
+                        <div class="flex gap-2">
+                            <input class="input" placeholder="Nom" />
+                            <input class="input" placeholder="Prénom" />
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Color Palette -->
+                <div class="mt-8 pt-6 border-t">
+                    <h3 class="text-sm font-medium text-gray-500 mb-3 tracking-wider">PALETTE</h3>
+                    <div class="flex gap-3">
+                        <div class="text-center">
+                            <div class="w-16 h-16 rounded-lg bg-black"></div>
+                            <p class="text-xs mt-1">Primary</p>
+                        </div>
+                        <div class="text-center">
+                            <div class="w-16 h-16 rounded-lg bg-stone-100"></div>
+                            <p class="text-xs mt-1">Secondary</p>
+                        </div>
+                        <div class="text-center">
+                            <div class="w-16 h-16 rounded-lg bg-white border"></div>
+                            <p class="text-xs mt-1">Background</p>
+                        </div>
+                        <div class="text-center">
+                            <div class="w-16 h-16 rounded-lg bg-stone-200"></div>
+                            <p class="text-xs mt-1">Muted</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Advantages of Shadcn/ui -->
+        <div class="bg-white rounded-xl shadow-sm p-8">
+            <h2 class="text-2xl font-bold mb-6">Pourquoi Shadcn/ui ?</h2>
+            <div class="grid md:grid-cols-2 gap-6">
+                <div>
+                    <h3 class="font-semibold mb-2">✅ Avantages</h3>
+                    <ul class="space-y-2 text-sm text-gray-600">
+                        <li>• Composants copiés dans votre code (pas de dépendance)</li>
+                        <li>• Accessibilité WCAG parfaite (Radix UI)</li>
+                        <li>• Personnalisation totale avec Tailwind</li>
+                        <li>• TypeScript natif</li>
+                        <li>• Mode sombre intégré</li>
+                        <li>• Performance optimale</li>
+                        <li>• Documentation excellente</li>
+                    </ul>
+                </div>
+                <div>
+                    <h3 class="font-semibold mb-2">🧩 Composants disponibles</h3>
+                    <ul class="space-y-2 text-sm text-gray-600">
+                        <li>• Forms avancés (Calendar, Combobox, etc.)</li>
+                        <li>• Tables avec tri et pagination</li>
+                        <li>• Charts (avec Recharts)</li>
+                        <li>• Dialogs, Sheets, Toasts</li>
+                        <li>• Navigation (Tabs, Breadcrumb)</li>
+                        <li>• Data Display (Avatar, Badge, Card)</li>
+                        <li>• Et 40+ autres composants</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Propositions Design System - PH2026</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .option-1 {
+            --primary: #2563eb;
+            --primary-dark: #1e40af;
+            --secondary: #10b981;
+            --accent: #f59e0b;
+        }
+        .option-2 {
+            --primary: #7c3aed;
+            --primary-dark: #6d28d9;
+            --secondary: #ec4899;
+            --accent: #06b6d4;
+        }
+        .option-3 {
+            --primary: #dc2626;
+            --primary-dark: #b91c1c;
+            --secondary: #0891b2;
+            --accent: #16a34a;
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <div class="max-w-7xl mx-auto p-8">
+        <h1 class="text-4xl font-bold text-gray-900 mb-8">Propositions de Design System</h1>
+        
+        <!-- Option 1: Confiance Citoyenne -->
+        <div class="mb-16 option-1">
+            <h2 class="text-2xl font-bold mb-6">Option 1: "Confiance Citoyenne"</h2>
+            <p class="text-gray-600 mb-6">Design institutionnel moderne avec une touche d'innovation. Inspire confiance et sérieux tout en restant accessible.</p>
+            
+            <div class="bg-white rounded-lg shadow-lg p-8 mb-6">
+                <!-- Couleurs -->
+                <div class="mb-8">
+                    <h3 class="text-lg font-semibold mb-4">Palette de couleurs</h3>
+                    <div class="flex gap-4">
+                        <div>
+                            <div class="w-24 h-24 rounded-lg" style="background: var(--primary)"></div>
+                            <p class="text-sm mt-2">Bleu Confiance<br>#2563eb</p>
+                        </div>
+                        <div>
+                            <div class="w-24 h-24 rounded-lg" style="background: var(--secondary)"></div>
+                            <p class="text-sm mt-2">Vert Espoir<br>#10b981</p>
+                        </div>
+                        <div>
+                            <div class="w-24 h-24 rounded-lg" style="background: var(--accent)"></div>
+                            <p class="text-sm mt-2">Ambre Énergie<br>#f59e0b</p>
+                        </div>
+                        <div>
+                            <div class="w-24 h-24 rounded-lg bg-gray-900"></div>
+                            <p class="text-sm mt-2">Gris Charbon<br>#111827</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Composants -->
+                <div class="mb-8">
+                    <h3 class="text-lg font-semibold mb-4">Composants</h3>
+                    <div class="space-y-4">
+                        <div class="flex gap-4">
+                            <button class="px-6 py-3 text-white font-medium rounded-lg transition-colors" style="background: var(--primary); hover:background: var(--primary-dark)">
+                                Bouton Principal
+                            </button>
+                            <button class="px-6 py-3 border-2 font-medium rounded-lg transition-colors" style="border-color: var(--primary); color: var(--primary)">
+                                Bouton Secondaire
+                            </button>
+                            <button class="px-6 py-3 text-gray-700 font-medium rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors">
+                                Bouton Ghost
+                            </button>
+                        </div>
+                        
+                        <div class="p-6 border-l-4 bg-blue-50" style="border-color: var(--primary)">
+                            <h4 class="font-semibold mb-2">Card avec accent</h4>
+                            <p class="text-gray-600">Design épuré avec accent coloré sur le côté pour hiérarchiser l'information.</p>
+                        </div>
+
+                        <div class="p-4 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg">
+                            <p class="font-semibold">Notification</p>
+                            <p class="text-sm opacity-90">Message important avec gradient subtil</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Typographie -->
+                <div>
+                    <h3 class="text-lg font-semibold mb-4">Typographie</h3>
+                    <p class="text-4xl font-bold mb-2">Inter Bold - Titres principaux</p>
+                    <p class="text-2xl font-semibold mb-2">Inter Semibold - Sous-titres</p>
+                    <p class="text-base mb-2">Inter Regular - Corps de texte lisible et moderne</p>
+                    <p class="text-sm text-gray-600">Inter Regular - Texte secondaire et annotations</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Option 2: Paris Dynamique -->
+        <div class="mb-16 option-2">
+            <h2 class="text-2xl font-bold mb-6">Option 2: "Paris Dynamique"</h2>
+            <p class="text-gray-600 mb-6">Design moderne et vibrant qui reflète l'énergie parisienne. Couleurs audacieuses mais équilibrées.</p>
+            
+            <div class="bg-white rounded-xl shadow-lg p-8 mb-6">
+                <!-- Couleurs -->
+                <div class="mb-8">
+                    <h3 class="text-lg font-semibold mb-4">Palette de couleurs</h3>
+                    <div class="flex gap-4">
+                        <div>
+                            <div class="w-24 h-24 rounded-xl" style="background: var(--primary)"></div>
+                            <p class="text-sm mt-2">Violet Paris<br>#7c3aed</p>
+                        </div>
+                        <div>
+                            <div class="w-24 h-24 rounded-xl" style="background: var(--secondary)"></div>
+                            <p class="text-sm mt-2">Rose Moderne<br>#ec4899</p>
+                        </div>
+                        <div>
+                            <div class="w-24 h-24 rounded-xl" style="background: var(--accent)"></div>
+                            <p class="text-sm mt-2">Cyan Tech<br>#06b6d4</p>
+                        </div>
+                        <div>
+                            <div class="w-24 h-24 rounded-xl bg-slate-900"></div>
+                            <p class="text-sm mt-2">Ardoise<br>#0f172a</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Composants -->
+                <div class="mb-8">
+                    <h3 class="text-lg font-semibold mb-4">Composants</h3>
+                    <div class="space-y-4">
+                        <div class="flex gap-4">
+                            <button class="px-6 py-3 text-white font-medium rounded-xl bg-gradient-to-r shadow-md transition-all hover:shadow-lg" style="background: linear-gradient(135deg, var(--primary), var(--secondary))">
+                                Bouton Principal
+                            </button>
+                            <button class="px-6 py-3 font-medium rounded-xl transition-all bg-purple-100 hover:bg-purple-200" style="color: var(--primary)">
+                                Bouton Secondaire
+                            </button>
+                            <button class="px-6 py-3 text-gray-700 font-medium rounded-xl hover:bg-gray-100 transition-colors">
+                                Bouton Ghost
+                            </button>
+                        </div>
+                        
+                        <div class="p-6 bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl border border-purple-200">
+                            <h4 class="font-semibold mb-2 text-purple-900">Card Gradient</h4>
+                            <p class="text-gray-700">Design moderne avec gradients subtils et bordures colorées.</p>
+                        </div>
+
+                        <div class="p-4 bg-gradient-to-r from-purple-500 via-pink-500 to-cyan-500 text-white rounded-xl">
+                            <p class="font-semibold">Notification Dynamique</p>
+                            <p class="text-sm opacity-90">Message avec gradient vibrant</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Typographie -->
+                <div>
+                    <h3 class="text-lg font-semibold mb-4">Typographie</h3>
+                    <p class="text-4xl font-bold mb-2">Poppins Bold - Titres impactants</p>
+                    <p class="text-2xl font-semibold mb-2">Poppins Semibold - Sous-titres</p>
+                    <p class="text-base mb-2">Poppins Regular - Corps de texte moderne</p>
+                    <p class="text-sm text-gray-600">Poppins Light - Annotations élégantes</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Option 3: Engagement Citoyen -->
+        <div class="mb-16 option-3">
+            <h2 class="text-2xl font-bold mb-6">Option 3: "Engagement Citoyen"</h2>
+            <p class="text-gray-600 mb-6">Design énergique et mobilisateur. Couleurs franches qui appellent à l'action et à la participation.</p>
+            
+            <div class="bg-white rounded-lg shadow-lg p-8 mb-6 border-t-4" style="border-color: var(--primary)">
+                <!-- Couleurs -->
+                <div class="mb-8">
+                    <h3 class="text-lg font-semibold mb-4">Palette de couleurs</h3>
+                    <div class="flex gap-4">
+                        <div>
+                            <div class="w-24 h-24 rounded-lg" style="background: var(--primary)"></div>
+                            <p class="text-sm mt-2">Rouge Action<br>#dc2626</p>
+                        </div>
+                        <div>
+                            <div class="w-24 h-24 rounded-lg" style="background: var(--secondary)"></div>
+                            <p class="text-sm mt-2">Bleu Solidarité<br>#0891b2</p>
+                        </div>
+                        <div>
+                            <div class="w-24 h-24 rounded-lg" style="background: var(--accent)"></div>
+                            <p class="text-sm mt-2">Vert Avenir<br>#16a34a</p>
+                        </div>
+                        <div>
+                            <div class="w-24 h-24 rounded-lg bg-gray-800"></div>
+                            <p class="text-sm mt-2">Gris Urbain<br>#1f2937</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Composants -->
+                <div class="mb-8">
+                    <h3 class="text-lg font-semibold mb-4">Composants</h3>
+                    <div class="space-y-4">
+                        <div class="flex gap-4">
+                            <button class="px-6 py-3 text-white font-bold rounded-lg shadow-md transition-all hover:shadow-lg transform hover:-translate-y-0.5" style="background: var(--primary)">
+                                BOUTON PRINCIPAL
+                            </button>
+                            <button class="px-6 py-3 font-bold rounded-lg transition-all bg-red-50 hover:bg-red-100 border-2" style="color: var(--primary); border-color: var(--primary)">
+                                BOUTON SECONDAIRE
+                            </button>
+                            <button class="px-6 py-3 text-gray-700 font-bold rounded-lg hover:bg-gray-100 transition-colors">
+                                BOUTON GHOST
+                            </button>
+                        </div>
+                        
+                        <div class="p-6 bg-white rounded-lg shadow-md border-l-8" style="border-color: var(--primary)">
+                            <h4 class="font-bold mb-2 text-red-700">Card Impact</h4>
+                            <p class="text-gray-700">Design fort avec bordure épaisse pour marquer l'importance.</p>
+                        </div>
+
+                        <div class="p-4 text-white rounded-lg flex items-center gap-3" style="background: var(--primary)">
+                            <div class="w-2 h-2 bg-white rounded-full animate-pulse"></div>
+                            <div>
+                                <p class="font-bold">Notification Urgente</p>
+                                <p class="text-sm opacity-90">Action requise maintenant</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Typographie -->
+                <div>
+                    <h3 class="text-lg font-semibold mb-4">Typographie</h3>
+                    <p class="text-4xl font-black mb-2">Montserrat Black - TITRES FORTS</p>
+                    <p class="text-2xl font-bold mb-2">Montserrat Bold - Sous-titres</p>
+                    <p class="text-base font-medium mb-2">Montserrat Medium - Corps de texte</p>
+                    <p class="text-sm text-gray-600">Montserrat Regular - Texte secondaire</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Comparaison -->
+        <div class="bg-white rounded-lg shadow-lg p-8">
+            <h2 class="text-2xl font-bold mb-6">Tableau Comparatif</h2>
+            <table class="w-full">
+                <thead>
+                    <tr class="border-b">
+                        <th class="text-left p-4">Critère</th>
+                        <th class="text-center p-4">Option 1<br>Confiance Citoyenne</th>
+                        <th class="text-center p-4">Option 2<br>Paris Dynamique</th>
+                        <th class="text-center p-4">Option 3<br>Engagement Citoyen</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr class="border-b">
+                        <td class="p-4 font-medium">Style</td>
+                        <td class="p-4 text-center">Institutionnel moderne</td>
+                        <td class="p-4 text-center">Moderne vibrant</td>
+                        <td class="p-4 text-center">Énergique militant</td>
+                    </tr>
+                    <tr class="border-b">
+                        <td class="p-4 font-medium">Public cible</td>
+                        <td class="p-4 text-center">Large, tous âges</td>
+                        <td class="p-4 text-center">Jeunes urbains</td>
+                        <td class="p-4 text-center">Militants, engagés</td>
+                    </tr>
+                    <tr class="border-b">
+                        <td class="p-4 font-medium">Message</td>
+                        <td class="p-4 text-center">Sérieux et confiance</td>
+                        <td class="p-4 text-center">Innovation et modernité</td>
+                        <td class="p-4 text-center">Action et mobilisation</td>
+                    </tr>
+                    <tr class="border-b">
+                        <td class="p-4 font-medium">Accessibilité</td>
+                        <td class="p-4 text-center">⭐⭐⭐⭐⭐</td>
+                        <td class="p-4 text-center">⭐⭐⭐⭐</td>
+                        <td class="p-4 text-center">⭐⭐⭐⭐</td>
+                    </tr>
+                    <tr>
+                        <td class="p-4 font-medium">Originalité</td>
+                        <td class="p-4 text-center">⭐⭐⭐</td>
+                        <td class="p-4 text-center">⭐⭐⭐⭐⭐</td>
+                        <td class="p-4 text-center">⭐⭐⭐⭐</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</body>
+</html>
