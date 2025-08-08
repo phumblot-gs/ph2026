@@ -1,21 +1,40 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+import { InputNoAutofill } from '@/components/ui/input-no-autofill'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { config } from '@/lib/config'
 import { AlertCircle } from 'lucide-react'
 
 export default function LoginPage() {
+  const [mounted, setMounted] = useState(false)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const router = useRouter()
   const supabase = createClient()
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  // Évite les erreurs d'hydratation causées par les extensions navigateur
+  if (!mounted) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-stone-50">
+        <div className="w-full max-w-md p-8">
+          <div className="animate-pulse">
+            <div className="h-8 bg-stone-200 rounded w-3/4 mx-auto mb-4"></div>
+            <div className="h-4 bg-stone-200 rounded w-1/2 mx-auto"></div>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -90,7 +109,7 @@ export default function LoginPage() {
               <label htmlFor="email" className="text-sm font-medium">
                 Email
               </label>
-              <Input
+              <InputNoAutofill
                 id="email"
                 type="email"
                 placeholder="vous@exemple.fr"
@@ -105,7 +124,7 @@ export default function LoginPage() {
               <label htmlFor="password" className="text-sm font-medium">
                 Mot de passe
               </label>
-              <Input
+              <InputNoAutofill
                 id="password"
                 type="password"
                 placeholder="••••••••"
