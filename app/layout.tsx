@@ -1,6 +1,7 @@
 import type { Metadata } from "next"
 import { Inter } from "next/font/google"
 import "./globals.css"
+import EnvironmentBanner from "@/components/EnvironmentBanner"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -14,9 +15,16 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode
 }>) {
+  const showBanner = process.env.NEXT_PUBLIC_ENV !== 'production'
+  
   return (
     <html lang="fr">
-      <body className={inter.className}>{children}</body>
+      <body className={inter.className}>
+        <EnvironmentBanner />
+        <div className={showBanner ? 'pt-7' : ''}>
+          {children}
+        </div>
+      </body>
     </html>
   )
 }
