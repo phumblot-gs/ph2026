@@ -15,14 +15,47 @@ export async function GET(request: Request) {
       const { data: { user } } = await supabase.auth.getUser()
       
       if (user) {
-        const { data: member } = await supabase
-          .from('members')
-          .select('role')
-          .eq('user_id', user.id)
-          .single()
+        // Attendre un peu pour que le trigger handle_new_user se termine
+        // Nécessaire pour les premières connexions Google OAuth
+        let member = null
+        let attempts = 0
+        const maxAttempts = 5
         
-        // Si l'utilisateur est pending, rediriger vers /pending
-        if (member?.role === 'pending') {
+        while (!member && attempts < maxAttempts) {
+          const { data } = await supabase
+            .from('members')
+            .select('role')
+            .eq('user_id', user.id)
+            .single()
+          
+          member = data
+          
+          if (!member && attempts < maxAttempts - 1) {
+            // Attendre 200ms avant de réessayer
+            await new Promise(resolve => setTimeout(resolve, 200))
+          }
+          attempts++
+        }
+        
+        // Si l'utilisateur est pending ou n'existe pas encore (sera créé comme pending)
+        if (!member || member.role === 'pending') {
+          // Si c'est un nouveau membre (pas encore dans la table), notifier les admins
+          if (!member && attempts > 0) {
+            try {
+              // Appeler l'API interne pour notifier les admins
+              const notifyUrl = `${origin}/api/notify-admin`
+              await fetch(notifyUrl, {
+                method: 'POST',
+                headers: { 
+                  'Content-Type': 'application/json',
+                  'Cookie': request.headers.get('cookie') || ''
+                }
+              })
+            } catch (error) {
+              console.log('Erreur notification admin:', error)
+              // On continue même si la notification échoue
+            }
+          }
           next = '/pending'
         }
       }

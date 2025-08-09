@@ -98,6 +98,17 @@ export default function JoinPage() {
       if (signUpError) throw signUpError
 
       if (data?.user) {
+        // Appeler l'API pour notifier les admins
+        try {
+          await fetch('/api/notify-admin', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+          })
+        } catch (notifyError) {
+          console.log('Erreur notification admin:', notifyError)
+          // On continue même si la notification échoue
+        }
+        
         setSuccess(true)
       }
     } catch (error: any) {
