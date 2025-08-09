@@ -27,13 +27,21 @@ function isAuthenticated(request: NextRequest): boolean {
 }
 
 export async function middleware(request: NextRequest) {
+  // Debug logs
+  console.log('[Middleware] Path:', request.nextUrl.pathname)
+  console.log('[Middleware] BASIC_AUTH_ENABLED:', BASIC_AUTH_ENABLED)
+  
   // Exclure les routes API et les assets statiques de l'auth basique
   const isApiRoute = request.nextUrl.pathname.startsWith('/api/')
   const isAuthRoute = request.nextUrl.pathname.startsWith('/auth/')
   
+  console.log('[Middleware] isApiRoute:', isApiRoute, 'isAuthRoute:', isAuthRoute)
+  
   // Appliquer l'authentification basique si activée
   if (BASIC_AUTH_ENABLED && !isApiRoute && !isAuthRoute) {
+    console.log('[Middleware] Basic auth check required')
     if (!isAuthenticated(request)) {
+      console.log('[Middleware] Basic auth failed - returning 401')
       return new NextResponse('Authentication required', {
         status: 401,
         headers: {
@@ -41,6 +49,7 @@ export async function middleware(request: NextRequest) {
         },
       })
     }
+    console.log('[Middleware] Basic auth passed')
   }
   
   // Continuer avec la session Supabase
