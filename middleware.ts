@@ -2,8 +2,10 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { updateSession } from '@/lib/supabase/middleware'
 
 // Configuration de l'authentification basique
-const BASIC_AUTH_USER = 'paul'
-const BASIC_AUTH_PASS = 'pierre'
+// Peut être surchargée par les variables d'environnement
+const BASIC_AUTH_USER = process.env.BASIC_AUTH_USER || 'paul'
+const BASIC_AUTH_PASS = process.env.BASIC_AUTH_PASSWORD || 'pierre'
+const BASIC_AUTH_ENABLED = process.env.BASIC_AUTH_ENABLED === 'true'
 
 function isAuthenticated(request: NextRequest): boolean {
   const authHeader = request.headers.get('authorization')
@@ -20,21 +22,17 @@ function isAuthenticated(request: NextRequest): boolean {
 }
 
 export async function middleware(request: NextRequest) {
-  // Ne pas appliquer l'auth basique en production
-  const isProduction = process.env.NEXT_PUBLIC_ENV === 'production' || 
-                      process.env.NODE_ENV === 'production' && !process.env.NEXT_PUBLIC_ENV
-  
   // Exclure les routes API et les assets statiques de l'auth basique
   const isApiRoute = request.nextUrl.pathname.startsWith('/api/')
   const isAuthRoute = request.nextUrl.pathname.startsWith('/auth/')
   
-  // Appliquer l'authentification basique sauf en production et pour certaines routes
-  if (!isProduction && !isApiRoute && !isAuthRoute) {
+  // Appliquer l'authentification basique si activée
+  if (BASIC_AUTH_ENABLED && !isApiRoute && !isAuthRoute) {
     if (!isAuthenticated(request)) {
       return new NextResponse('Authentication required', {
         status: 401,
         headers: {
-          'WWW-Authenticate': 'Basic realm="Site en développement"',
+          'WWW-Authenticate': 'Basic realm="Site privé - Accès restreint"',
         },
       })
     }
