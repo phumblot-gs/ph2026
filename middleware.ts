@@ -9,8 +9,10 @@ const BASIC_AUTH_ENABLED = true
 
 function isAuthenticated(request: NextRequest): boolean {
   const authHeader = request.headers.get('authorization')
+  console.log('[Auth] Authorization header:', authHeader ? 'present' : 'missing')
   
   if (!authHeader || !authHeader.startsWith('Basic ')) {
+    console.log('[Auth] No valid Basic auth header')
     return false
   }
   
@@ -20,8 +22,12 @@ function isAuthenticated(request: NextRequest): boolean {
     const credentials = atob(base64Credentials)
     const [username, password] = credentials.split(':')
     
-    return username === BASIC_AUTH_USER && password === BASIC_AUTH_PASS
+    console.log('[Auth] Checking credentials - username:', username, 'expected:', BASIC_AUTH_USER)
+    const isValid = username === BASIC_AUTH_USER && password === BASIC_AUTH_PASS
+    console.log('[Auth] Authentication result:', isValid)
+    return isValid
   } catch (error) {
+    console.log('[Auth] Error decoding credentials:', error)
     return false
   }
 }
@@ -42,12 +48,16 @@ export async function middleware(request: NextRequest) {
     console.log('[Middleware] Basic auth check required')
     if (!isAuthenticated(request)) {
       console.log('[Middleware] Basic auth failed - returning 401')
-      return new NextResponse('Authentication required', {
+      // Retourner une réponse 401 avec le header WWW-Authenticate
+      // Cela devrait déclencher la popup d'authentification du navigateur
+      const response = new NextResponse('Authentication required', {
         status: 401,
         headers: {
           'WWW-Authenticate': 'Basic realm="Site prive - Acces restreint"',
+          'Cache-Control': 'no-store, no-cache, must-revalidate',
         },
       })
+      return response
     }
     console.log('[Middleware] Basic auth passed')
   }
