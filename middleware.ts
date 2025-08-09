@@ -2,10 +2,9 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { updateSession } from '@/lib/supabase/middleware'
 
 // Configuration de l'authentification basique
-// Dans Edge Runtime, on doit hardcoder ou utiliser une méthode différente
+// Hardcoded pour Edge Runtime (process.env n'est pas disponible)
 const BASIC_AUTH_USER = 'paul'
 const BASIC_AUTH_PASS = 'pierre'
-// Activer l'auth basique (à changer manuellement pour désactiver)
 const BASIC_AUTH_ENABLED = true
 
 function isAuthenticated(request: NextRequest): boolean {
@@ -17,7 +16,7 @@ function isAuthenticated(request: NextRequest): boolean {
   
   try {
     const base64Credentials = authHeader.split(' ')[1]
-    // Décoder base64 de manière compatible avec Edge Runtime
+    // Utiliser atob() au lieu de Buffer pour Edge Runtime
     const credentials = atob(base64Credentials)
     const [username, password] = credentials.split(':')
     
@@ -38,7 +37,7 @@ export async function middleware(request: NextRequest) {
       return new NextResponse('Authentication required', {
         status: 401,
         headers: {
-          'WWW-Authenticate': 'Basic realm="Protected Site"',
+          'WWW-Authenticate': 'Basic realm="Site prive - Acces restreint"',
         },
       })
     }
