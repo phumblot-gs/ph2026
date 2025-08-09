@@ -85,9 +85,20 @@ export async function POST(request: Request) {
     const resendApiKey = process.env.RESEND_API_KEY
     
     if (!resendApiKey) {
-      console.log('RESEND_API_KEY non configuré - Notification email simulée')
-      console.log(`Nouveaux membre à valider : ${memberFullName} (${member.email})`)
-      console.log(`${superAdmins.length} super_admins auraient été notifiés`)
+      console.log('===========================================')
+      console.log('📧 NOTIFICATION EMAIL SIMULÉE')
+      console.log('===========================================')
+      console.log(`Nouveau membre à valider : ${memberFullName} (${member.email})`)
+      console.log(`Photo : ${member.photo_url ? 'Oui (Google)' : 'Non'}`)
+      console.log(`Date : ${new Date(member.created_at).toLocaleString('fr-FR')}`)
+      console.log('-------------------------------------------')
+      console.log(`${superAdmins.length} super_admin(s) seraient notifiés :`)
+      superAdmins.forEach(admin => {
+        console.log(`  - ${admin.first_name} ${admin.last_name} (${admin.email})`)
+      })
+      console.log('-------------------------------------------')
+      console.log(`Lien modération : ${siteUrl}/admin/moderation`)
+      console.log('===========================================\n')
       
       return NextResponse.json({
         success: true,
