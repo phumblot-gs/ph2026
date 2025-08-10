@@ -92,6 +92,10 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- 4. TRIGGER POUR LES NOUVEAUX UTILISATEURS
 -- ============================================
+-- Supprimer le trigger s'il existe déjà
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+
+-- Créer le trigger
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
@@ -164,6 +168,8 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Trigger pour auto-update du champ updated_at
+DROP TRIGGER IF EXISTS update_members_updated_at ON public.members;
+
 CREATE TRIGGER update_members_updated_at
   BEFORE UPDATE ON public.members
   FOR EACH ROW

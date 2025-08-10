@@ -4,6 +4,7 @@
 
 -- Supprimer les triggers (ignore l'erreur si n'existe pas)
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+DROP TRIGGER IF EXISTS update_members_updated_at ON public.members;
 
 -- Supprimer les fonctions
 DROP FUNCTION IF EXISTS public.handle_new_user() CASCADE;
