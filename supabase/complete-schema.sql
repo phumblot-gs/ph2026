@@ -5,7 +5,13 @@
 
 -- 1. CRÉATION DU TYPE ENUM POUR LES RÔLES
 -- ============================================
-CREATE TYPE user_role AS ENUM ('pending', 'member', 'admin', 'super_admin');
+-- Créer le type seulement s'il n'existe pas déjà
+DO $$ 
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'user_role') THEN
+        CREATE TYPE user_role AS ENUM ('pending', 'member', 'admin', 'super_admin');
+    END IF;
+END$$;
 
 -- 2. CRÉATION DE LA TABLE MEMBERS
 -- ============================================
