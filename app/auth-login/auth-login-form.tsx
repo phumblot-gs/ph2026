@@ -87,10 +87,6 @@ export default function AuthLoginForm() {
           {loading ? 'Connexion...' : 'Se connecter'}
         </button>
       </div>
-      
-      <div className="text-xs text-center text-gray-500">
-        Identifiants: paul / pierre
-      </div>
     </form>
   )
 }
