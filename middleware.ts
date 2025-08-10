@@ -8,58 +8,49 @@ const BASIC_AUTH_PASS = 'pierre'
 const BASIC_AUTH_ENABLED = true
 
 function isAuthenticated(request: NextRequest): boolean {
-  const authHeader = request.headers.get('authorization')
-  console.log('[Auth] Authorization header:', authHeader ? 'present' : 'missing')
+  // Vérifier le cookie d'authentification
+  const authCookie = request.cookies.get('basic-auth')
+  if (authCookie) {
+    try {
+      const credentials = atob(authCookie.value)
+      const [username, password] = credentials.split(':')
+      return username === BASIC_AUTH_USER && password === BASIC_AUTH_PASS
+    } catch (error) {
+      console.log('[Auth] Error decoding cookie:', error)
+    }
+  }
   
+  // Fallback sur le header Authorization (pour les outils comme curl)
+  const authHeader = request.headers.get('authorization')
   if (!authHeader || !authHeader.startsWith('Basic ')) {
-    console.log('[Auth] No valid Basic auth header')
     return false
   }
   
   try {
     const base64Credentials = authHeader.split(' ')[1]
-    // Utiliser atob() au lieu de Buffer pour Edge Runtime
     const credentials = atob(base64Credentials)
     const [username, password] = credentials.split(':')
-    
-    console.log('[Auth] Checking credentials - username:', username, 'expected:', BASIC_AUTH_USER)
-    const isValid = username === BASIC_AUTH_USER && password === BASIC_AUTH_PASS
-    console.log('[Auth] Authentication result:', isValid)
-    return isValid
+    return username === BASIC_AUTH_USER && password === BASIC_AUTH_PASS
   } catch (error) {
-    console.log('[Auth] Error decoding credentials:', error)
     return false
   }
 }
 
 export async function middleware(request: NextRequest) {
-  // Debug logs
-  console.log('[Middleware] Path:', request.nextUrl.pathname)
-  console.log('[Middleware] BASIC_AUTH_ENABLED:', BASIC_AUTH_ENABLED)
+  const path = request.nextUrl.pathname
   
-  // Exclure les routes API et les assets statiques de l'auth basique
-  const isApiRoute = request.nextUrl.pathname.startsWith('/api/')
-  const isAuthRoute = request.nextUrl.pathname.startsWith('/auth/')
-  
-  console.log('[Middleware] isApiRoute:', isApiRoute, 'isAuthRoute:', isAuthRoute)
+  // Exclure certaines routes de l'auth basique
+  const isApiRoute = path.startsWith('/api/')
+  const isAuthRoute = path.startsWith('/auth/')
+  const isBasicAuthLogin = path === '/basic-auth-login'
   
   // Appliquer l'authentification basique si activée
-  if (BASIC_AUTH_ENABLED && !isApiRoute && !isAuthRoute) {
-    console.log('[Middleware] Basic auth check required')
+  if (BASIC_AUTH_ENABLED && !isApiRoute && !isAuthRoute && !isBasicAuthLogin) {
     if (!isAuthenticated(request)) {
-      console.log('[Middleware] Basic auth failed - returning 401')
-      // Retourner une réponse 401 avec le header WWW-Authenticate
-      // Cela devrait déclencher la popup d'authentification du navigateur
-      const response = new NextResponse('Authentication required', {
-        status: 401,
-        headers: {
-          'WWW-Authenticate': 'Basic realm="Site prive - Acces restreint"',
-          'Cache-Control': 'no-store, no-cache, must-revalidate',
-        },
-      })
-      return response
+      // Rediriger vers la page de login au lieu de retourner 401
+      const loginUrl = new URL('/basic-auth-login', request.url)
+      return NextResponse.redirect(loginUrl)
     }
-    console.log('[Middleware] Basic auth passed')
   }
   
   // Continuer avec la session Supabase
