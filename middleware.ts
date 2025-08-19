@@ -43,9 +43,10 @@ export async function middleware(request: NextRequest) {
   const isApiRoute = path.startsWith('/api/')
   const isAuthRoute = path.startsWith('/auth')
   const isBasicAuthLogin = path === '/basic-auth-login' || path === '/auth-login'
+  const isLegalPage = path === '/privacy' || path === '/terms'
   
   // Appliquer l'authentification basique si activée
-  if (BASIC_AUTH_ENABLED && !isApiRoute && !isAuthRoute && !isBasicAuthLogin) {
+  if (BASIC_AUTH_ENABLED && !isApiRoute && !isAuthRoute && !isBasicAuthLogin && !isLegalPage) {
     if (!isAuthenticated(request)) {
       // Rediriger vers la page de login au lieu de retourner 401
       const loginUrl = new URL('/auth-login', request.url)

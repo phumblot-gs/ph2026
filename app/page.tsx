@@ -4,7 +4,9 @@ import { Input } from "@/components/ui/input"
 import { ArrowRight, Calendar, Users, MapPin } from "lucide-react"
 import { config } from "@/lib/config"
 
-export default function Home() {
+export default async function Home() {
+  // Gérer le callback d'authentification si code présent dans l'URL
+  
   return (
     <main className="min-h-screen">
       {/* Hero Section */}
@@ -20,7 +22,7 @@ export default function Home() {
             Rejoignez le mouvement pour les élections municipales de 2026.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <a href="/join">
+            <a href="/signup">
               <Button size="lg" className="group">
                 Nous rejoindre
                 <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
