@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 
 export default function BasicAuthLogin() {
@@ -8,7 +8,12 @@ export default function BasicAuthLogin() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [mounted, setMounted] = useState(false)
   const router = useRouter()
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -25,9 +30,8 @@ export default function BasicAuthLogin() {
       })
 
       if (response.ok) {
-        // Rediriger vers la page d'accueil
-        router.push('/')
-        router.refresh()
+        // Forcer une redirection complète
+        window.location.href = '/'
       } else {
         setError('Identifiants incorrects')
       }
@@ -36,6 +40,11 @@ export default function BasicAuthLogin() {
     } finally {
       setLoading(false)
     }
+  }
+
+  // Attendre que le composant soit monté pour éviter les problèmes d'hydratation
+  if (!mounted) {
+    return null
   }
 
   return (

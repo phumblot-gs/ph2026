@@ -1,4 +1,5 @@
-export type UserRole = 'super_admin' | 'admin' | 'direction' | 'communication' | 'finance' | 'expert' | 'member' | 'pending'
+export type UserRole = 'member' | 'admin'
+export type UserStatus = 'active' | 'suspended'
 export type ActionType = 'tractage' | 'porte_a_porte' | 'reunion' | 'stand' | 'autre'
 export type EngagementLevel = 'sympathisant' | 'militant' | 'donateur' | 'benevole_actif'
 
@@ -10,6 +11,14 @@ export interface Group {
   updated_at: string
 }
 
+export interface UserGroup {
+  id: string
+  user_id: string
+  group_id: string
+  joined_at: string
+  group?: Group
+}
+
 export interface Member {
   id: string
   user_id?: string
@@ -19,9 +28,9 @@ export interface Member {
   phone?: string
   photo_url?: string
   role: UserRole
+  status: UserStatus
   expertise?: string
   availability?: string
-  is_active: boolean
   created_at: string
   updated_at: string
   groups?: Group[]
