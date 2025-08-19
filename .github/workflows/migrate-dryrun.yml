@@ -1,0 +1,51 @@
+name: Dry-run DB migrations on PR test→main
+
+on:
+  pull_request:
+    branches:
+      - main
+    types: [opened, synchronize, reopened]
+
+jobs:
+  dryrun-migrations:
+    runs-on: ubuntu-latest
+    # Only run for PRs where head is test → base is main
+    if: github.event.pull_request.base.ref == 'main' && github.event.pull_request.head.ref == 'test'
+    environment: Production
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Supabase CLI (action)
+        id: setup_cli
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+        continue-on-error: true
+
+      - name: Setup Supabase CLI (fallback download)
+        if: steps.setup_cli.outcome == 'failure'
+        run: |
+          set -eux
+          VERSION="${SUPABASE_CLI_VERSION:-2.33.9}"
+          ARCH=$(uname -m)
+          case "$ARCH" in
+            x86_64) ARCH=amd64 ;;
+            aarch64) ARCH=arm64 ;;
+            *) echo "Unsupported arch: $ARCH"; exit 1 ;;
+          esac
+          curl -fsSL "https://github.com/supabase/cli/releases/download/v${VERSION}/supabase_${VERSION}_linux_${ARCH}.tar.gz" -o supabase.tgz
+          sudo tar -xzf supabase.tgz -C /usr/local/bin supabase
+          supabase --version
+
+      - name: Validate migrations directory
+        run: |
+          ls -l supabase/migrations || { echo 'No migrations found'; exit 1; }
+
+      - name: Dry-run migrations against PROD
+        env:
+          PROD_DB_URL: ${{ secrets.PROD_DB_URL }}
+        run: |
+          if [ -z "$PROD_DB_URL" ]; then echo 'Missing secret PROD_DB_URL'; exit 1; fi
+          supabase db push --db-url "$PROD_DB_URL" --dry-run
