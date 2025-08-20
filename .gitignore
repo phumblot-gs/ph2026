@@ -44,3 +44,8 @@ next-env.d.ts
 
 # deployment logs
 deployments.log
+
+# supabase
+supabase/.branches
+supabase/.temp
+supabase/archive/

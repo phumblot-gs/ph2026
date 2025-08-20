@@ -19,7 +19,7 @@ export default function RootLayout({
   
   return (
     <html lang="fr">
-      <body className={inter.className}>
+      <body className={inter.className} suppressHydrationWarning>
         <EnvironmentBanner />
         <div className={showBanner ? 'pt-7' : ''}>
           {children}
