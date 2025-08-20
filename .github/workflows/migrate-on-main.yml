@@ -1,0 +1,45 @@
+name: Apply DB migrations on test→main merge
+
+on:
+  pull_request:
+    branches:
+      - main
+    types: [closed]
+  push:
+    branches:
+      - main
+
+jobs:
+  migrate-prod:
+    runs-on: ubuntu-latest
+    # Run when a PR into main was merged, or as a fallback on any push to main
+    if: |
+      (github.event_name == 'pull_request' && github.event.pull_request.merged == true && github.event.pull_request.base.ref == 'main' && github.event.pull_request.head.ref == 'test')
+      || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    environment: Production
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Validate migrations exist
+        run: |
+          ls -l supabase/migrations || { echo 'No migrations directory found'; exit 1; }
+
+      - name: Dry-run migrations against PROD
+        env:
+          PROD_DB_URL: ${{ secrets.PROD_DB_URL }}
+        run: |
+          if [ -z "$PROD_DB_URL" ]; then echo 'Missing secret PROD_DB_URL'; exit 1; fi
+          supabase db push --db-url "$PROD_DB_URL" --dry-run
+
+      - name: Apply migrations to PROD
+        env:
+          PROD_DB_URL: ${{ secrets.PROD_DB_URL }}
+        run: |
+          supabase db push --db-url "$PROD_DB_URL"
