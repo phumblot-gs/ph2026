@@ -4,11 +4,12 @@
 -- Description: Désactive le trigger car la création des membres est gérée par le callback OAuth
 -- ============================================
 
--- Supprimer le trigger s'il existe
+-- Supprimer les triggers qui dépendent de la fonction
 DROP TRIGGER IF EXISTS handle_new_user ON auth.users;
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 
 -- Supprimer la fonction associée
-DROP FUNCTION IF EXISTS handle_new_user();
+DROP FUNCTION IF EXISTS handle_new_user() CASCADE;
 
 -- Note: La création des membres est maintenant gérée par :
 -- - /api/auth/signup pour les inscriptions email/password
