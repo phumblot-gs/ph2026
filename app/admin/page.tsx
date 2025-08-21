@@ -1,120 +1,66 @@
-import { createClient } from '@/lib/supabase/server'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { config } from '@/lib/config'
-import { Users, Contact, Calendar, DollarSign, Map, TrendingUp } from 'lucide-react'
-import PendingMembersAlert from '@/components/admin/PendingMembersAlert'
+import { redirect } from 'next/navigation';
+import { createClient } from '@/lib/supabase/server';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import DonationsTab from './components/donations-tab';
+import MembersTab from './components/members-tab';
+import SettingsTab from './components/settings-tab';
+import StatsOverview from './components/stats-overview';
+import { AdminNav } from '@/components/admin-nav';
+import { Footer } from '@/components/footer';
 
-export default async function AdminDashboard() {
-  const supabase = await createClient()
+export default async function AdminPage() {
+  const supabase = await createClient();
   
-  // Fetch stats (these will return 0 initially as tables are empty)
-  const [
-    { count: membersCount },
-    { count: contactsCount },
-    { count: actionsCount },
-    { count: donationsCount }
-  ] = await Promise.all([
-    supabase.from('members').select('*', { count: 'exact', head: true }),
-    supabase.from('contacts').select('*', { count: 'exact', head: true }),
-    supabase.from('field_actions').select('*', { count: 'exact', head: true }),
-    supabase.from('donations').select('*', { count: 'exact', head: true })
-  ])
-
-  const stats = [
-    {
-      title: 'Membres actifs',
-      value: membersCount || 0,
-      icon: Users,
-      color: 'text-blue-600',
-      bgColor: 'bg-blue-50',
-    },
-    {
-      title: 'Contacts CRM',
-      value: contactsCount || 0,
-      icon: Contact,
-      color: 'text-green-600',
-      bgColor: 'bg-green-50',
-    },
-    {
-      title: 'Actions terrain',
-      value: actionsCount || 0,
-      icon: Map,
-      color: 'text-purple-600',
-      bgColor: 'bg-purple-50',
-    },
-    {
-      title: 'Dons reçus',
-      value: `${donationsCount || 0}`,
-      icon: DollarSign,
-      color: 'text-amber-600',
-      bgColor: 'bg-amber-50',
-    },
-  ]
-
+  // Check authentication and admin role
+  const { data: { user } } = await supabase.auth.getUser();
+  
+  if (!user) {
+    redirect('/login');
+  }
+  
+  const { data: member } = await supabase
+    .from('members')
+    .select('role')
+    .eq('user_id', user.id)
+    .single();
+  
+  if (!member || member.role !== 'admin') {
+    redirect('/dashboard');
+  }
+  
   return (
-    <div>
-      <div className="mb-8">
-        <h1 className="text-3xl font-serif font-light">Tableau de bord</h1>
-        <p className="text-muted-foreground mt-2">
-          Bienvenue dans l'espace d'administration {config.party.name}
-        </p>
+    <div className="min-h-screen bg-gray-50">
+      {/* Navigation */}
+      <AdminNav />
+      
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 pb-8">
+        {/* Statistics Overview */}
+        <StatsOverview />
+        
+        {/* Main Tabs */}
+        <div className="mt-8">
+          <Tabs defaultValue="donations" className="space-y-6">
+            <TabsList className="grid w-full grid-cols-3 lg:w-auto">
+              <TabsTrigger value="donations">Dons</TabsTrigger>
+              <TabsTrigger value="members">Membres</TabsTrigger>
+              <TabsTrigger value="settings">Paramètres</TabsTrigger>
+            </TabsList>
+            
+            <TabsContent value="donations" className="space-y-6">
+              <DonationsTab />
+            </TabsContent>
+            
+            <TabsContent value="members" className="space-y-6">
+              <MembersTab />
+            </TabsContent>
+            
+            <TabsContent value="settings" className="space-y-6">
+              <SettingsTab />
+            </TabsContent>
+          </Tabs>
+        </div>
       </div>
-
-      {/* Pending Members Alert */}
-      <PendingMembersAlert />
-
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        {stats.map((stat) => {
-          const Icon = stat.icon
-          return (
-            <Card key={stat.title}>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">
-                  {stat.title}
-                </CardTitle>
-                <div className={`p-2 rounded-lg ${stat.bgColor}`}>
-                  <Icon className={`h-4 w-4 ${stat.color}`} />
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{stat.value}</div>
-              </CardContent>
-            </Card>
-          )
-        })}
-      </div>
-
-      {/* Quick Actions */}
-      <div className="grid md:grid-cols-2 gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Calendar className="h-5 w-5" />
-              Prochains événements
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-muted-foreground text-sm">
-              Aucun événement programmé pour le moment.
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <TrendingUp className="h-5 w-5" />
-              Activité récente
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-muted-foreground text-sm">
-              Aucune activité récente à afficher.
-            </p>
-          </CardContent>
-        </Card>
-      </div>
+      <Footer />
     </div>
-  )
+  );
 }
