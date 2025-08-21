@@ -7,9 +7,11 @@ import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { InputNoAutofill } from '@/components/ui/input-no-autofill'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { PhoneInput } from '@/components/ui/phone-input'
 import { config } from '@/lib/config'
 import { AlertCircle, CheckCircle, XCircle, Eye, EyeOff } from 'lucide-react'
 import { signInWithGoogle, signInWithTwitter } from '@/lib/auth/providers'
+import { Footer } from '@/components/footer'
 
 // Fonction pour calculer la force du mot de passe
 function getPasswordStrength(password: string): {
@@ -78,8 +80,8 @@ export default function SignupPage() {
       return
     }
 
-    // Format phone number
-    const formattedPhone = phone.replace(/\s/g, '').replace(/^0/, '+33')
+    // Phone is already formatted in E.164 format by PhoneInput component
+    const formattedPhone = phone
 
     try {
       console.log('Tentative inscription avec:', { email, firstName, lastName })
@@ -187,8 +189,9 @@ export default function SignupPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-stone-50 py-12">
-      <Card className="w-full max-w-md">
+    <div className="min-h-screen flex flex-col bg-stone-50">
+      <div className="flex-1 flex items-center justify-center py-12">
+        <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <CardTitle className="text-2xl font-serif">{config.party.name}</CardTitle>
           <CardDescription>Rejoignez le mouvement</CardDescription>
@@ -306,13 +309,11 @@ export default function SignupPage() {
               <label htmlFor="phone" className="text-sm font-medium">
                 Téléphone
               </label>
-              <InputNoAutofill
-                id="phone"
-                type="tel"
-                placeholder="06 12 34 56 78"
+              <PhoneInput
                 value={phone}
-                onChange={(e) => setPhone(e.target.value)}
+                onChange={setPhone}
                 disabled={isLoading}
+                placeholder="06 12 34 56 78"
               />
             </div>
 
@@ -407,7 +408,9 @@ export default function SignupPage() {
             </Link>
           </p>
         </CardContent>
-      </Card>
+        </Card>
+      </div>
+      <Footer />
     </div>
   )
 }
