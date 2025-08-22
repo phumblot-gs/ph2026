@@ -25,7 +25,7 @@ export async function autocompleteAddress(input: string): Promise<GooglePlacePre
         input,
         key: apiKey,
         components: ['country:fr'], // Restrict to France
-        types: ['address'],
+        types: 'address' as any, // Type issue with Google Maps library
         language: 'fr',
       },
     });
@@ -57,7 +57,7 @@ export async function getPlaceDetails(placeId: string): Promise<GooglePlaceResul
         place_id: placeId,
         key: apiKey,
         fields: ['formatted_address', 'address_components', 'geometry'],
-        language: 'fr',
+        language: 'fr' as any, // Type issue with Google Maps library
       },
     });
 

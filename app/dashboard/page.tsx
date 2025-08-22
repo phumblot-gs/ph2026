@@ -39,23 +39,35 @@ export default async function DashboardPage() {
   const groupIds = userGroups?.map(ug => ug.group_id) || []
   
   // Récupérer les derniers membres qui ont rejoint ces groupes
-  const { data: recentMembers } = await supabase
+  const { data: recentGroupMembers } = await supabase
     .from('user_groups')
     .select(`
       created_at,
-      members!user_groups_user_id_fkey (
-        first_name,
-        last_name,
-        email,
-        created_at
-      ),
-      groups (
-        name
-      )
+      user_id,
+      group_id
     `)
     .in('group_id', groupIds)
     .order('created_at', { ascending: false })
     .limit(10)
+  
+  // Récupérer les infos des membres et des groupes
+  const memberIds = recentGroupMembers?.map(gm => gm.user_id) || []
+  const { data: membersInfo } = await supabase
+    .from('members')
+    .select('user_id, first_name, last_name, email')
+    .in('user_id', memberIds)
+    
+  const { data: groupsInfo } = await supabase
+    .from('groups')
+    .select('id, name')
+    .in('id', groupIds)
+  
+  // Combiner les données
+  const recentMembers = recentGroupMembers?.map(gm => ({
+    ...gm,
+    member: membersInfo?.find(m => m.user_id === gm.user_id),
+    group: groupsInfo?.find(g => g.id === gm.group_id)
+  }))
   
   // Formater la date
   const formatDate = (dateString: string) => {
@@ -150,15 +162,15 @@ export default async function DashboardPage() {
                     <div key={index} className="flex items-start space-x-3 pb-3 border-b last:border-0">
                       <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
                         <span className="text-blue-600 font-semibold">
-                          {item.members?.first_name?.[0]?.toUpperCase() || '?'}
+                          {item.member?.first_name?.[0]?.toUpperCase() || '?'}
                         </span>
                       </div>
                       <div className="flex-1">
                         <p className="font-medium text-sm">
-                          {item.members?.first_name} {item.members?.last_name}
+                          {item.member?.first_name} {item.member?.last_name}
                         </p>
                         <p className="text-xs text-gray-500">
-                          A rejoint {item.groups?.name} • {formatDate(item.created_at)}
+                          A rejoint {item.group?.name} • {formatDate(item.created_at)}
                         </p>
                       </div>
                     </div>
