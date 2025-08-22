@@ -125,8 +125,6 @@ export async function POST(request: NextRequest) {
       billing_address_collection: 'required',
       // Customer creation for receipts
       customer_creation: 'if_required',
-      // Add customer details
-      customer_email: member.email,
       // Set payment intent data
       payment_intent_data: {
         metadata: {
