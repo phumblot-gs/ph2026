@@ -19,20 +19,24 @@ export async function GET(request: NextRequest) {
 
   try {
     // Générer l'URL d'autorisation Slack
+    // Note: Les scopes admin ne sont pas inclus car ils nécessitent un workspace payant
     const authUrl = await slackOAuthProvider.generateInstallUrl({
       scopes: [
-        'identity.basic',
-        'identity.email',
-        'identity.avatar',
-        'channels:read',
-        'groups:read',
-        'channels:history',
-        'groups:history',
+        'channels:manage',      // Créer et gérer les canaux
+        'channels:read',        // Lire les infos des canaux  
+        'channels:history',     // Lire l'historique
+        'groups:read',          // Lire les canaux privés
+        'groups:write',         // Gérer les canaux privés
+        'groups:history',       // Historique canaux privés
+        'users:read',           // Lire les infos utilisateurs
+        'users:read.email',     // Lire les emails
+        'chat:write',           // Envoyer des messages
+        'im:write',            // Messages directs
       ],
       redirectUri: process.env.NEXT_PUBLIC_SLACK_REDIRECT_URI,
       userScopes: [
         'identity.basic',
-        'identity.email',
+        'identity.email', 
         'identity.avatar',
       ],
       metadata: JSON.stringify({ userId: user.id }),

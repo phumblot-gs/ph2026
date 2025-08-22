@@ -51,9 +51,11 @@ L'application dispose déjà d'un système d'authentification complet, de gestio
 - Déconnexion Slack → le laisser dans les groupes mais plus d'accès Slack
 
 ### 5. Gestion des changements de rôles
+- ⚠️ **Note : Nécessite un workspace Slack payant**
 - Changement member → admin : mettre à jour les permissions Slack (admin workspace)
 - Changement admin → member : retirer les permissions admin Slack
 - Utiliser l'API Slack pour gérer les rôles dans le workspace
+- **Si workspace gratuit** : Les changements de rôles dans PH2026 n'affecteront pas les rôles Slack
 
 ### 6. Page d'administration /admin
 - Ajouter un onglet "Groupes" après l'onglet "Membres" pour lister les groupes et pour chaque groupe le nombre de membres associés

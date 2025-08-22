@@ -61,8 +61,49 @@ CREATE INDEX IF NOT EXISTS idx_slack_activity_log_created_at ON slack_activity_l
 -- Policies pour slack_app_config (admin seulement)
 ALTER TABLE slack_app_config ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Admin can manage Slack app config" ON slack_app_config
-  FOR ALL 
+-- Admin peut voir la config
+CREATE POLICY "Admin can view Slack app config" ON slack_app_config
+  FOR SELECT 
+  USING (
+    EXISTS (
+      SELECT 1 FROM members 
+      WHERE members.user_id = auth.uid() 
+      AND members.role = 'admin'
+    )
+  );
+
+-- Admin peut insérer la config
+CREATE POLICY "Admin can insert Slack app config" ON slack_app_config
+  FOR INSERT
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM members 
+      WHERE members.user_id = auth.uid() 
+      AND members.role = 'admin'
+    )
+  );
+
+-- Admin peut mettre à jour la config
+CREATE POLICY "Admin can update Slack app config" ON slack_app_config
+  FOR UPDATE
+  USING (
+    EXISTS (
+      SELECT 1 FROM members 
+      WHERE members.user_id = auth.uid() 
+      AND members.role = 'admin'
+    )
+  )
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM members 
+      WHERE members.user_id = auth.uid() 
+      AND members.role = 'admin'
+    )
+  );
+
+-- Admin peut supprimer la config
+CREATE POLICY "Admin can delete Slack app config" ON slack_app_config
+  FOR DELETE
   USING (
     EXISTS (
       SELECT 1 FROM members 
@@ -90,10 +131,36 @@ CREATE POLICY "Users can view own Slack logs" ON slack_activity_log
   FOR SELECT 
   USING (user_id = auth.uid());
 
--- Seul le système peut insérer des logs (via service role)
-CREATE POLICY "System can insert Slack logs" ON slack_activity_log
+-- Les utilisateurs authentifiés peuvent insérer leurs propres logs
+CREATE POLICY "Users can insert own Slack logs" ON slack_activity_log
   FOR INSERT 
-  WITH CHECK (true);
+  WITH CHECK (
+    auth.uid() IS NOT NULL 
+    AND (
+      user_id = auth.uid() 
+      OR EXISTS (
+        SELECT 1 FROM members 
+        WHERE members.user_id = auth.uid() 
+        AND members.role = 'admin'
+      )
+    )
+  );
+
+-- Les logs sont immutables (pas de modification)
+CREATE POLICY "No one can update Slack logs" ON slack_activity_log
+  FOR UPDATE
+  USING (false);
+
+-- Seuls les admins peuvent supprimer des logs (pour RGPD)
+CREATE POLICY "Admin can delete Slack logs" ON slack_activity_log
+  FOR DELETE
+  USING (
+    EXISTS (
+      SELECT 1 FROM members 
+      WHERE members.user_id = auth.uid() 
+      AND members.role = 'admin'
+    )
+  );
 
 -- ==========================================
 -- 6. Fonctions utilitaires
@@ -179,10 +246,61 @@ GRANT UPDATE (slack_user_id, slack_access_token, slack_connected_at) ON members 
 -- Permettre aux admins de mettre à jour slack_channel_id des groupes
 GRANT UPDATE (slack_channel_id) ON groups TO authenticated;
 
--- Commentaires pour documentation
+-- ==========================================
+-- 9. Contraintes de validation
+-- ==========================================
+
+-- Vérifier que slack_user_id a le bon format (commence par U)
+ALTER TABLE members 
+  ADD CONSTRAINT check_slack_user_id_format 
+  CHECK (slack_user_id IS NULL OR slack_user_id ~ '^U[A-Z0-9]+$');
+
+-- Vérifier que slack_channel_id a le bon format (commence par C)
+ALTER TABLE groups 
+  ADD CONSTRAINT check_slack_channel_id_format 
+  CHECK (slack_channel_id IS NULL OR slack_channel_id ~ '^C[A-Z0-9]+$');
+
+-- Vérifier que action_type est valide
+ALTER TABLE slack_activity_log
+  ADD CONSTRAINT check_action_type_valid
+  CHECK (action_type IN (
+    'connect', 'disconnect', 
+    'channel_created', 'channel_deleted', 
+    'user_added', 'user_removed',
+    'channel_sync', 'message_sent'
+  ));
+
+-- ==========================================
+-- 10. Indexes supplémentaires pour performance
+-- ==========================================
+
+-- Index sur slack_connected_at pour les requêtes de tri
+CREATE INDEX IF NOT EXISTS idx_members_slack_connected_at 
+  ON members(slack_connected_at DESC) 
+  WHERE slack_user_id IS NOT NULL;
+
+-- Index composite pour les requêtes fréquentes
+CREATE INDEX IF NOT EXISTS idx_slack_activity_log_user_action 
+  ON slack_activity_log(user_id, action_type, created_at DESC);
+
+-- ==========================================
+-- 11. Grants pour les fonctions
+-- ==========================================
+
+-- Permettre aux utilisateurs authentifiés d'utiliser les fonctions utilitaires
+GRANT EXECUTE ON FUNCTION get_slack_connected_group_members(UUID) TO authenticated;
+GRANT EXECUTE ON FUNCTION get_user_groups_with_slack(UUID) TO authenticated;
+
+-- ==========================================
+-- 12. Commentaires pour documentation
+-- ==========================================
+
 COMMENT ON COLUMN members.slack_user_id IS 'ID utilisateur Slack (format: U1234567890)';
 COMMENT ON COLUMN members.slack_access_token IS 'Token OAuth Slack chiffré de l''utilisateur';
 COMMENT ON COLUMN members.slack_connected_at IS 'Date de connexion à Slack';
 COMMENT ON COLUMN groups.slack_channel_id IS 'ID du canal Slack associé au groupe (format: C1234567890)';
 COMMENT ON TABLE slack_app_config IS 'Configuration globale de l''application Slack';
 COMMENT ON TABLE slack_activity_log IS 'Journal des activités Slack pour audit et debug';
+COMMENT ON CONSTRAINT check_slack_user_id_format ON members IS 'Format Slack user ID: U suivi de lettres/chiffres majuscules';
+COMMENT ON CONSTRAINT check_slack_channel_id_format ON groups IS 'Format Slack channel ID: C suivi de lettres/chiffres majuscules';
+COMMENT ON CONSTRAINT check_action_type_valid ON slack_activity_log IS 'Types d''actions Slack autorisées';
