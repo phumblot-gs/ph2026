@@ -1,4 +1,0 @@
--- Placeholder migration
--- Cette migration a été exécutée manuellement sur la base de production
--- Ce fichier existe uniquement pour maintenir la cohérence avec l'historique des migrations
--- La vraie migration est dans 20250823090000_create_avatars_bucket.sql

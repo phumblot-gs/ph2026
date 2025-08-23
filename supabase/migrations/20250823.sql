@@ -1,0 +1,4 @@
+-- Placeholder migration
+-- Cette migration correspond à 20250823090000_create_avatars_bucket.sql
+-- Elle a été exécutée manuellement sur la base de production avec le nom court "20250823"
+-- Ce fichier existe uniquement pour maintenir la cohérence avec l'historique des migrations
