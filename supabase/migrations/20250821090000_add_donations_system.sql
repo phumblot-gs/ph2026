@@ -26,10 +26,10 @@ CREATE TABLE IF NOT EXISTS donations (
 );
 
 -- Index pour les recherches fréquentes
-CREATE INDEX idx_donations_member_id ON donations(member_id);
-CREATE INDEX idx_donations_status ON donations(status);
-CREATE INDEX idx_donations_created_at ON donations(created_at DESC);
-CREATE INDEX idx_donations_stripe_payment_intent ON donations(stripe_payment_intent_id);
+CREATE INDEX IF NOT EXISTS idx_donations_member_id ON donations(member_id);
+CREATE INDEX IF NOT EXISTS idx_donations_status ON donations(status);
+CREATE INDEX IF NOT EXISTS idx_donations_created_at ON donations(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_donations_stripe_payment_intent ON donations(stripe_payment_intent_id);
 
 -- 3. Créer la table app_settings pour les paramètres globaux
 CREATE TABLE IF NOT EXISTS app_settings (
@@ -87,8 +87,8 @@ CREATE TABLE IF NOT EXISTS checkout_sessions (
 );
 
 -- Index pour les tokens et l'expiration
-CREATE INDEX idx_checkout_sessions_token ON checkout_sessions(session_token);
-CREATE INDEX idx_checkout_sessions_expires ON checkout_sessions(expires_at);
+CREATE INDEX IF NOT EXISTS idx_checkout_sessions_token ON checkout_sessions(session_token);
+CREATE INDEX IF NOT EXISTS idx_checkout_sessions_expires ON checkout_sessions(expires_at);
 
 -- 6. Créer une table d'audit pour les actions administratives
 CREATE TABLE IF NOT EXISTS admin_audit_log (
@@ -104,9 +104,9 @@ CREATE TABLE IF NOT EXISTS admin_audit_log (
 );
 
 -- Index pour l'audit
-CREATE INDEX idx_admin_audit_log_admin ON admin_audit_log(admin_id);
-CREATE INDEX idx_admin_audit_log_entity ON admin_audit_log(entity_type, entity_id);
-CREATE INDEX idx_admin_audit_log_created ON admin_audit_log(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_admin_audit_log_admin ON admin_audit_log(admin_id);
+CREATE INDEX IF NOT EXISTS idx_admin_audit_log_entity ON admin_audit_log(entity_type, entity_id);
+CREATE INDEX IF NOT EXISTS idx_admin_audit_log_created ON admin_audit_log(created_at DESC);
 
 -- 7. Fonction pour calculer le total des dons d'un membre sur l'année en cours
 CREATE OR REPLACE FUNCTION get_member_yearly_donations(p_member_id UUID)
