@@ -61,6 +61,12 @@ CREATE INDEX IF NOT EXISTS idx_slack_activity_log_created_at ON slack_activity_l
 -- Policies pour slack_app_config (admin seulement)
 ALTER TABLE slack_app_config ENABLE ROW LEVEL SECURITY;
 
+-- Supprimer les policies existantes avant de les recréer
+DROP POLICY IF EXISTS "Admin can view Slack app config" ON slack_app_config;
+DROP POLICY IF EXISTS "Admin can insert Slack app config" ON slack_app_config;
+DROP POLICY IF EXISTS "Admin can update Slack app config" ON slack_app_config;
+DROP POLICY IF EXISTS "Admin can delete Slack app config" ON slack_app_config;
+
 -- Admin peut voir la config
 CREATE POLICY "Admin can view Slack app config" ON slack_app_config
   FOR SELECT 
@@ -114,6 +120,13 @@ CREATE POLICY "Admin can delete Slack app config" ON slack_app_config
 
 -- Policies pour slack_activity_log
 ALTER TABLE slack_activity_log ENABLE ROW LEVEL SECURITY;
+
+-- Supprimer les policies existantes avant de les recréer
+DROP POLICY IF EXISTS "Admin can view all Slack logs" ON slack_activity_log;
+DROP POLICY IF EXISTS "Users can view own Slack logs" ON slack_activity_log;
+DROP POLICY IF EXISTS "Users can insert own Slack logs" ON slack_activity_log;
+DROP POLICY IF EXISTS "No one can update Slack logs" ON slack_activity_log;
+DROP POLICY IF EXISTS "Admin can delete Slack logs" ON slack_activity_log;
 
 -- Les admins peuvent voir tous les logs
 CREATE POLICY "Admin can view all Slack logs" ON slack_activity_log

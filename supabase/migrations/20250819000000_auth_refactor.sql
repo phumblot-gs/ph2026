@@ -240,6 +240,10 @@ CREATE TRIGGER update_groups_updated_at
 -- RLS pour la table groups
 ALTER TABLE public.groups ENABLE ROW LEVEL SECURITY;
 
+-- Supprimer les policies existantes avant de les recréer
+DROP POLICY IF EXISTS "Active users can view groups" ON public.groups;
+DROP POLICY IF EXISTS "Admins can manage groups" ON public.groups;
+
 -- Tous les utilisateurs actifs peuvent voir les groupes
 CREATE POLICY "Active users can view groups" ON public.groups
   FOR SELECT
@@ -252,6 +256,11 @@ CREATE POLICY "Admins can manage groups" ON public.groups
 
 -- RLS pour la table user_groups
 ALTER TABLE public.user_groups ENABLE ROW LEVEL SECURITY;
+
+-- Supprimer les policies existantes avant de les recréer
+DROP POLICY IF EXISTS "Users can view own groups" ON public.user_groups;
+DROP POLICY IF EXISTS "Admins can view all user groups" ON public.user_groups;
+DROP POLICY IF EXISTS "Admins can manage user groups" ON public.user_groups;
 
 -- Les utilisateurs peuvent voir leurs propres groupes
 CREATE POLICY "Users can view own groups" ON public.user_groups
@@ -273,6 +282,12 @@ CREATE POLICY "Admins can manage user groups" ON public.user_groups
 
 -- Activer RLS sur la table members
 ALTER TABLE public.members ENABLE ROW LEVEL SECURITY;
+
+-- Supprimer les policies existantes avant de les recréer
+DROP POLICY IF EXISTS "Active users can view own profile" ON public.members;
+DROP POLICY IF EXISTS "Active admins can view all members" ON public.members;
+DROP POLICY IF EXISTS "Active admins can update members" ON public.members;
+DROP POLICY IF EXISTS "Active users can update own profile" ON public.members;
 
 -- Nouvelle politique : Les utilisateurs actifs peuvent voir leur propre profil
 CREATE POLICY "Active users can view own profile" ON public.members
