@@ -1,3 +1,0 @@
--- Placeholder migration
--- Cette migration correspond à 20250821090000_add_donations_system.sql
--- Elle a été exécutée sur la base avec le nom court "20250821"

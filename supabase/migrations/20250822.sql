@@ -1,3 +1,0 @@
--- Placeholder migration
--- Cette migration correspond à 20250822090000_add_slack_integration.sql
--- Elle a été exécutée sur la base avec le nom court "20250822"
