@@ -26,8 +26,10 @@ import {
   Shield,
   UserCheck,
   UserX,
-  FileSpreadsheet,
-  Pencil
+  Download,
+  Pencil,
+  MessageSquare,
+  Users
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import * as XLSX from 'xlsx';
@@ -40,31 +42,102 @@ export default function MembersTab() {
   const [selectedMembers, setSelectedMembers] = useState<string[]>([]);
   const [bulkAction, setBulkAction] = useState<string>('');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [filterSlack, setFilterSlack] = useState<'all' | 'connected' | 'not_connected'>('all');
+  const [filterRole, setFilterRole] = useState<'all' | 'admin' | 'member'>('all');
+  const [filterStatus, setFilterStatus] = useState<'active' | 'all' | 'suspended'>('active');
+  const [filterGroup, setFilterGroup] = useState<string>('all');
+  const [groups, setGroups] = useState<any[]>([]);
   
   useEffect(() => {
+    loadGroups();
     loadMembers();
-  }, [searchTerm]);
+  }, [searchTerm, filterSlack, filterRole, filterStatus, filterGroup]);
+  
+  async function loadGroups() {
+    const supabase = createClient();
+    const { data } = await supabase
+      .from('groups')
+      .select('id, name')
+      .order('name', { ascending: true });
+    if (data) setGroups(data);
+  }
   
   async function loadMembers() {
     setLoading(true);
     const supabase = createClient();
     
-    const { data, error } = await supabase
+    // Récupérer les membres
+    const { data: membersData, error: membersError } = await supabase
       .from('members')
       .select('*')
       .order('created_at', { ascending: false });
     
-    if (!error && data) {
-      let filtered = data;
-      if (searchTerm) {
-        filtered = data.filter(m => 
-          m.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          m.first_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          m.last_name?.toLowerCase().includes(searchTerm.toLowerCase())
-        );
-      }
-      setMembers(filtered);
+    if (membersError) {
+      console.error('Error loading members:', membersError);
+      setLoading(false);
+      return;
     }
+    
+    // Récupérer les associations user_groups avec les infos des groupes
+    const { data: userGroupsData } = await supabase
+      .from('user_groups')
+      .select(`
+        user_id,
+        group_id,
+        groups (
+          id,
+          name
+        )
+      `);
+    
+    // Associer les groupes aux membres
+    const membersWithGroups = membersData?.map(member => {
+      const memberGroups = userGroupsData?.filter(ug => ug.user_id === member.user_id) || [];
+      return {
+        ...member,
+        user_groups: memberGroups
+      };
+    }) || [];
+    
+    let filtered = membersWithGroups;
+    
+    // Filtrer par recherche
+    if (searchTerm) {
+      filtered = filtered.filter(m => 
+        m.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        m.first_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        m.last_name?.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+    }
+    
+    // Filtrer par statut Slack
+    if (filterSlack === 'connected') {
+      filtered = filtered.filter(m => m.slack_user_id);
+    } else if (filterSlack === 'not_connected') {
+      filtered = filtered.filter(m => !m.slack_user_id);
+    }
+    
+    // Filtrer par rôle
+    if (filterRole !== 'all') {
+      filtered = filtered.filter(m => m.role === filterRole);
+    }
+    
+    // Filtrer par statut (par défaut: exclure les suspendus)
+    if (filterStatus === 'active') {
+      filtered = filtered.filter(m => m.status === 'active');
+    } else if (filterStatus === 'suspended') {
+      filtered = filtered.filter(m => m.status === 'suspended');
+    }
+    // 'all' affiche tout
+    
+    // Filtrer par groupe
+    if (filterGroup !== 'all') {
+      filtered = filtered.filter(m => 
+        m.user_groups?.some((ug: any) => ug.groups?.id === filterGroup)
+      );
+    }
+    
+    setMembers(filtered);
     
     setLoading(false);
     setSelectedMembers([]); // Reset selection when reloading
@@ -130,11 +203,8 @@ export default function MembersTab() {
       'Email': member.email || '',
       'Téléphone': member.phone || '',
       'Date de naissance': member.birth_date ? new Date(member.birth_date).toLocaleDateString('fr-FR') : '',
-      'Adresse': member.address_line1 || '',
-      'Complément': member.address_line2 || '',
-      'Code postal': member.postal_code || '',
-      'Ville': member.city || '',
-      'Pays': member.country || '',
+      'Groupes': member.user_groups?.map((ug: any) => ug.groups?.name).filter(Boolean).join(', ') || 'Aucun',
+      'Slack': member.slack_user_id ? 'Connecté' : 'Non connecté',
       'Rôle': member.role || 'member',
       'Statut': member.status || 'active',
       'Date d\'inscription': new Date(member.created_at).toLocaleDateString('fr-FR'),
@@ -166,7 +236,7 @@ export default function MembersTab() {
                 {selectedMembers.length > 0 && ` • ${selectedMembers.length} sélectionné(s)`}
               </CardDescription>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
               <Input
@@ -177,22 +247,65 @@ export default function MembersTab() {
                 className="pl-10 w-64"
               />
             </div>
+            <Select value={filterSlack} onValueChange={(value: any) => setFilterSlack(value)}>
+              <SelectTrigger className="w-[140px]">
+                <SelectValue placeholder="Connexion" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tous</SelectItem>
+                <SelectItem value="connected">Connectés</SelectItem>
+                <SelectItem value="not_connected">Non connectés</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={filterRole} onValueChange={(value: any) => setFilterRole(value)}>
+              <SelectTrigger className="w-[120px]">
+                <SelectValue placeholder="Rôle" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tous rôles</SelectItem>
+                <SelectItem value="admin">Admin</SelectItem>
+                <SelectItem value="member">Membre</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={filterStatus} onValueChange={(value: any) => setFilterStatus(value)}>
+              <SelectTrigger className="w-[120px]">
+                <SelectValue placeholder="Statut" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="active">Actifs</SelectItem>
+                <SelectItem value="all">Tous statuts</SelectItem>
+                <SelectItem value="suspended">Suspendus</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={filterGroup} onValueChange={setFilterGroup}>
+              <SelectTrigger className="w-[150px]">
+                <SelectValue placeholder="Groupe" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Tous groupes</SelectItem>
+                {groups.map(group => (
+                  <SelectItem key={group.id} value={group.id}>
+                    {group.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Button
               variant="outline"
-              size="sm"
+              size="icon"
               onClick={loadMembers}
+              title="Actualiser"
             >
-              <RefreshCw className="h-4 w-4 mr-2" />
-              Actualiser
+              <RefreshCw className="h-4 w-4" />
             </Button>
             <Button
               variant="outline"
-              size="sm"
+              size="icon"
               onClick={exportToExcel}
               disabled={members.length === 0}
+              title="Exporter XLS"
             >
-              <FileSpreadsheet className="h-4 w-4 mr-2" />
-              Exporter XLS
+              <Download className="h-4 w-4" />
             </Button>
             </div>
           </div>
@@ -242,7 +355,7 @@ export default function MembersTab() {
                 </TableHead>
                 <TableHead>Membre</TableHead>
                 <TableHead>Contact</TableHead>
-                <TableHead>Adresse</TableHead>
+                <TableHead>Groupes</TableHead>
                 <TableHead>Rôle</TableHead>
                 <TableHead>Statut</TableHead>
                 <TableHead>Inscrit le</TableHead>
@@ -273,20 +386,31 @@ export default function MembersTab() {
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center">
-                        <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center mr-3">
-                          <span className="text-sm font-semibold text-blue-600">
-                            {member.first_name?.[0]?.toUpperCase() || '?'}
-                          </span>
+                        <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center mr-3 overflow-hidden">
+                          {member.photo_url ? (
+                            <img 
+                              src={member.photo_url} 
+                              alt={`${member.first_name} ${member.last_name}`}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <span className="text-sm font-semibold text-blue-600">
+                              {member.first_name?.[0]?.toUpperCase() || '?'}
+                            </span>
+                          )}
                         </div>
                         <div>
-                          <p className="font-medium">
-                            {member.first_name} {member.last_name}
-                          </p>
-                          {member.birth_date && (
-                            <p className="text-xs text-gray-500">
-                              Né(e) le {new Date(member.birth_date).toLocaleDateString('fr-FR')}
+                          <div className="flex items-center gap-2">
+                            <p className="font-medium">
+                              {member.first_name} {member.last_name}
                             </p>
-                          )}
+                            <div 
+                              className={`h-2 w-2 rounded-full ${
+                                member.slack_user_id ? 'bg-green-500' : 'bg-gray-300'
+                              }`}
+                              title="Connexion Slack"
+                            />
+                          </div>
                         </div>
                       </div>
                     </TableCell>
@@ -304,13 +428,16 @@ export default function MembersTab() {
                       </div>
                     </TableCell>
                     <TableCell>
-                      {member.city ? (
-                        <div className="flex items-center text-sm">
-                          <MapPin className="h-3 w-3 mr-1 text-gray-400" />
-                          {member.postal_code} {member.city}
+                      {member.user_groups && member.user_groups.length > 0 ? (
+                        <div className="flex flex-wrap gap-1">
+                          {member.user_groups.map((ug: any, index: number) => (
+                            <Badge key={index} variant="secondary" className="text-xs">
+                              {ug.groups?.name || 'Groupe'}
+                            </Badge>
+                          ))}
                         </div>
                       ) : (
-                        <span className="text-gray-400 text-sm">Non renseignée</span>
+                        <span className="text-gray-400 text-sm">Aucun groupe</span>
                       )}
                     </TableCell>
                     <TableCell>{getRoleBadge(member.role)}</TableCell>

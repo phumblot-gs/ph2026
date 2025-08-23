@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Heart } from 'lucide-react'
 import { DashboardNav } from '@/components/dashboard-nav'
 import { Footer } from '@/components/footer'
+import { GroupSlackMessages } from '@/components/group-slack-messages'
 
 export default async function DashboardPage() {
   const supabase = await createClient()
@@ -31,7 +32,8 @@ export default async function DashboardPage() {
       groups (
         id,
         name,
-        description
+        description,
+        slack_channel_id
       )
     `)
     .eq('user_id', user.id)
@@ -128,24 +130,17 @@ export default async function DashboardPage() {
           
           {/* Main Content Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Contenus récents - Placeholder */}
-            <Card>
-            <CardHeader>
-              <CardTitle>Contenus récents</CardTitle>
-              <CardDescription>
-                Les dernières publications de vos groupes
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div className="flex items-center justify-center h-32 border-2 border-dashed border-gray-300 rounded-lg">
-                  <p className="text-gray-500 text-sm">
-                    Les contenus seront affichés ici prochainement
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+            {/* Messages Slack des groupes */}
+            <div>
+              <GroupSlackMessages 
+                groups={userGroups?.map(ug => ({
+                  id: ug.groups?.id || '',
+                  name: ug.groups?.name || '',
+                  slack_channel_id: ug.groups?.slack_channel_id || null
+                })) || []}
+                isSlackConnected={!!member?.slack_user_id}
+              />
+            </div>
           
           {/* Nouveaux membres */}
           <Card>

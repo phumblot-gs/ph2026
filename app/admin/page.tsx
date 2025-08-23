@@ -1,9 +1,6 @@
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import DonationsTab from './components/donations-tab';
-import MembersTab from './components/members-tab';
-import SettingsTab from './components/settings-tab';
+import AdminTabs from './components/admin-tabs';
 import StatsOverview from './components/stats-overview';
 import { AdminNav } from '@/components/admin-nav';
 import { Footer } from '@/components/footer';
@@ -39,25 +36,7 @@ export default async function AdminPage() {
         
         {/* Main Tabs */}
         <div className="mt-8">
-          <Tabs defaultValue="donations" className="space-y-6">
-            <TabsList className="grid w-full grid-cols-3 lg:w-auto">
-              <TabsTrigger value="donations">Dons</TabsTrigger>
-              <TabsTrigger value="members">Membres</TabsTrigger>
-              <TabsTrigger value="settings">Paramètres</TabsTrigger>
-            </TabsList>
-            
-            <TabsContent value="donations" className="space-y-6">
-              <DonationsTab />
-            </TabsContent>
-            
-            <TabsContent value="members" className="space-y-6">
-              <MembersTab />
-            </TabsContent>
-            
-            <TabsContent value="settings" className="space-y-6">
-              <SettingsTab />
-            </TabsContent>
-          </Tabs>
+          <AdminTabs />
         </div>
       </div>
       <Footer />

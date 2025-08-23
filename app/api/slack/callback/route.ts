@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { slackOAuthProvider } from '@/lib/slack/client';
 import { WebClient } from '@slack/web-api';
 
 export async function GET(request: NextRequest) {
@@ -15,7 +14,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(new URL('/profile?error=slack_auth_denied', request.url));
   }
 
-  if (!code || !slackOAuthProvider) {
+  if (!code) {
     return NextResponse.redirect(new URL('/profile?error=slack_auth_failed', request.url));
   }
 
@@ -27,24 +26,29 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    // Échanger le code contre un token
-    const result = await slackOAuthProvider.handleCallback(
-      { code, state },
-      {
-        success: async (installation) => installation,
-        failure: async (error) => {
-          console.error('Slack OAuth failure:', error);
-          throw error;
-        },
-      }
-    );
+    // Échanger le code contre un token directement avec l'API Slack
+    const tokenResponse = await fetch('https://slack.com/api/oauth.v2.access', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: new URLSearchParams({
+        client_id: process.env.SLACK_CLIENT_ID!,
+        client_secret: process.env.SLACK_CLIENT_SECRET!,
+        code: code,
+        redirect_uri: process.env.NEXT_PUBLIC_SLACK_REDIRECT_URI!,
+      }),
+    });
 
-    if (!result) {
-      throw new Error('No installation result');
+    const tokenData = await tokenResponse.json();
+
+    if (!tokenData.ok) {
+      console.error('Slack token exchange failed:', tokenData);
+      throw new Error(tokenData.error || 'Token exchange failed');
     }
 
     // Récupérer les informations de l'utilisateur Slack
-    const userClient = new WebClient(result.user?.token || result.access_token);
+    const userClient = new WebClient(tokenData.authed_user?.access_token || tokenData.access_token);
     const identityResult = await userClient.users.identity();
 
     if (!identityResult.ok || !identityResult.user) {
@@ -52,7 +56,7 @@ export async function GET(request: NextRequest) {
     }
 
     const slackUserId = identityResult.user.id;
-    const slackUserToken = result.user?.token || result.access_token;
+    const slackUserToken = tokenData.authed_user?.access_token || tokenData.access_token;
 
     // Mettre à jour le membre dans la base de données
     const { error: updateError } = await supabase

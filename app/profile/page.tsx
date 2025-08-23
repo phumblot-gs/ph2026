@@ -13,6 +13,8 @@ import { AddressAutocomplete } from '@/components/ui/address-autocomplete'
 import { PhoneInput } from '@/components/ui/phone-input'
 import { DatePicker } from '@/components/ui/date-picker'
 import { Footer } from '@/components/footer'
+import { SlackConnection } from '@/components/slack-connection'
+import { AvatarUpload } from '@/components/ui/avatar-upload'
 
 interface ProfileFormData {
   first_name: string
@@ -179,6 +181,20 @@ export default function ProfilePage() {
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-6">
+              {/* Avatar Upload */}
+              <div className="pb-6 border-b">
+                <Label className="block mb-4">Photo de profil</Label>
+                <AvatarUpload
+                  userId={member?.user_id || ''}
+                  currentPhotoUrl={member?.photo_url}
+                  userName={`${formData.first_name} ${formData.last_name}`.trim() || formData.email}
+                  onPhotoUpdate={async () => {
+                    // Recharger le profil après la mise à jour de la photo
+                    await loadProfile()
+                  }}
+                />
+              </div>
+              
               {/* Name fields */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
@@ -315,6 +331,13 @@ export default function ProfilePage() {
               : 'bg-red-50 text-red-800'
           }`}>
             {message.text}
+          </div>
+        )}
+
+        {/* Slack Integration */}
+        {member && (
+          <div className="mt-8">
+            <SlackConnection userId={member.user_id} />
           </div>
         )}
         
