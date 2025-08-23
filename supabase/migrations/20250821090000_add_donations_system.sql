@@ -71,7 +71,8 @@ INSERT INTO app_settings_donation (amount, title, description, display_order) VA
   (100, 'Mobilisation terrain', 'Impression de tracts pour 1 journée d''actions sur le terrain', 3),
   (500, 'Un événement local', 'Organisation d''une rencontre citoyenne dans votre quartier', 4),
   (1000, 'Donateur officiel', 'Vous devenez donateur officiel de la campagne', 5),
-  (4000, 'Grand donateur', 'Vous devenez grand donateur de la campagne', 6);
+  (4000, 'Grand donateur', 'Vous devenez grand donateur de la campagne', 6)
+ON CONFLICT (amount) DO NOTHING;
 
 -- 5. Créer une table pour stocker temporairement les données de checkout
 CREATE TABLE IF NOT EXISTS checkout_sessions (
@@ -239,6 +240,12 @@ ALTER TABLE checkout_sessions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE admin_audit_log ENABLE ROW LEVEL SECURITY;
 
 -- Policies pour donations
+-- Supprimer les policies existantes avant de les recréer
+DROP POLICY IF EXISTS "Members can view their own donations" ON donations;
+DROP POLICY IF EXISTS "Members can insert their own donations" ON donations;
+DROP POLICY IF EXISTS "Admins can view all donations" ON donations;
+DROP POLICY IF EXISTS "Admins can update donations" ON donations;
+
 CREATE POLICY "Members can view their own donations" ON donations
   FOR SELECT USING (auth.uid() = (SELECT user_id FROM members WHERE id = member_id));
 
@@ -264,6 +271,9 @@ CREATE POLICY "Admins can update donations" ON donations
   );
 
 -- Policies pour app_settings
+DROP POLICY IF EXISTS "Anyone can read app_settings" ON app_settings;
+DROP POLICY IF EXISTS "Admins can update app_settings" ON app_settings;
+
 CREATE POLICY "Anyone can read app_settings" ON app_settings
   FOR SELECT USING (true);
 
@@ -277,6 +287,9 @@ CREATE POLICY "Admins can update app_settings" ON app_settings
   );
 
 -- Policies pour app_settings_donation
+DROP POLICY IF EXISTS "Anyone can read active donation examples" ON app_settings_donation;
+DROP POLICY IF EXISTS "Admins can manage donation examples" ON app_settings_donation;
+
 CREATE POLICY "Anyone can read active donation examples" ON app_settings_donation
   FOR SELECT USING (is_active = true);
 
@@ -290,6 +303,10 @@ CREATE POLICY "Admins can manage donation examples" ON app_settings_donation
   );
 
 -- Policies pour checkout_sessions
+DROP POLICY IF EXISTS "Users can read their own checkout sessions" ON checkout_sessions;
+DROP POLICY IF EXISTS "Users can create checkout sessions" ON checkout_sessions;
+DROP POLICY IF EXISTS "Users can update their own checkout sessions" ON checkout_sessions;
+
 CREATE POLICY "Users can read their own checkout sessions" ON checkout_sessions
   FOR SELECT USING (email = (SELECT email FROM members WHERE user_id = auth.uid()));
 
@@ -300,6 +317,9 @@ CREATE POLICY "Users can update their own checkout sessions" ON checkout_session
   FOR UPDATE USING (email = (SELECT email FROM members WHERE user_id = auth.uid()));
 
 -- Policies pour admin_audit_log
+DROP POLICY IF EXISTS "Admins can view audit logs" ON admin_audit_log;
+DROP POLICY IF EXISTS "System can insert audit logs" ON admin_audit_log;
+
 CREATE POLICY "Admins can view audit logs" ON admin_audit_log
   FOR SELECT USING (
     EXISTS (
