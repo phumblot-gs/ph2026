@@ -20,7 +20,7 @@ interface AvatarUploadProps {
   userId: string;
   currentPhotoUrl?: string;
   userName?: string;
-  onPhotoUpdate?: (url: string) => void;
+  onPhotoUpdate?: (url: string | null) => void;
 }
 
 export function AvatarUpload({ 
@@ -36,6 +36,7 @@ export function AvatarUpload({
   const [crop, setCrop] = useState<Point>({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
   const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null);
+  const [croppedPreview, setCroppedPreview] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const supabase = createClient();
 
@@ -47,20 +48,16 @@ export function AvatarUpload({
     return name.slice(0, 2).toUpperCase();
   };
 
-  const onCropComplete = useCallback((croppedArea: Area, croppedAreaPixels: Area) => {
-    setCroppedAreaPixels(croppedAreaPixels);
-  }, []);
-
-  const createImage = (url: string): Promise<HTMLImageElement> =>
+  const createImage = useCallback((url: string): Promise<HTMLImageElement> =>
     new Promise((resolve, reject) => {
       const image = new Image();
       image.addEventListener('load', () => resolve(image));
       image.addEventListener('error', (error) => reject(error));
       image.setAttribute('crossOrigin', 'anonymous');
       image.src = url;
-    });
+    }), []);
 
-  const getCroppedImg = async (
+  const getCroppedImg = useCallback(async (
     imageSrc: string,
     pixelCrop: Area
   ): Promise<Blob | null> => {
@@ -71,9 +68,14 @@ export function AvatarUpload({
     if (!ctx) return null;
 
     // Définir la taille du canvas (carré pour l'avatar)
-    const size = 400;
+    // Utiliser une taille plus grande pour une meilleure qualité
+    const size = 800; // Augmenté de 400 à 800 pour une meilleure qualité
     canvas.width = size;
     canvas.height = size;
+
+    // Activer l'antialiasing pour une meilleure qualité
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
 
     // Dessiner l'image recadrée
     ctx.drawImage(
@@ -88,21 +90,49 @@ export function AvatarUpload({
       size
     );
 
-    // Convertir en blob
+    // Convertir en blob avec une qualité maximale
+    // Essayer WebP d'abord pour une meilleure compression, sinon JPEG
     return new Promise((resolve) => {
+      // Vérifier le support WebP
+      const supportsWebP = canvas.toDataURL('image/webp').indexOf('data:image/webp') === 0;
+      
       canvas.toBlob((blob) => {
         resolve(blob);
-      }, 'image/jpeg', 0.95);
+      }, supportsWebP ? 'image/webp' : 'image/jpeg', supportsWebP ? 0.95 : 1.0); 
+      // WebP à 0.95 offre une excellente qualité avec une taille réduite
+      // JPEG à 1.0 pour la meilleure qualité possible
     });
-  };
+  }, [createImage]);
+
+  const onCropComplete = useCallback(async (croppedArea: Area, croppedAreaPixels: Area) => {
+    setCroppedAreaPixels(croppedAreaPixels);
+    
+    // Générer un aperçu du recadrage pour l'affichage en temps réel
+    if (previewUrl) {
+      try {
+        const croppedImg = await getCroppedImg(previewUrl, croppedAreaPixels);
+        if (croppedImg) {
+          const preview = URL.createObjectURL(croppedImg);
+          // Nettoyer l'ancienne URL d'aperçu pour éviter les fuites mémoire
+          if (croppedPreview) {
+            URL.revokeObjectURL(croppedPreview);
+          }
+          setCroppedPreview(preview);
+        }
+      } catch (e) {
+        console.error('Error generating preview:', e);
+      }
+    }
+  }, [previewUrl, getCroppedImg, croppedPreview]);
 
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    // Vérifier le type de fichier
-    if (!file.type.startsWith('image/')) {
-      alert('Veuillez sélectionner une image');
+    // Vérifier le type de fichier - Accepter uniquement JPG, PNG et GIF
+    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif'];
+    if (!allowedTypes.includes(file.type)) {
+      alert('Format non supporté. Veuillez sélectionner une image JPG, PNG ou GIF');
       return;
     }
 
@@ -215,9 +245,9 @@ export function AvatarUpload({
         }
       }
 
-      setPhotoUrl('');
+      setPhotoUrl(''); // On garde la chaîne vide ici pour l'état local
       if (onPhotoUpdate) {
-        onPhotoUpdate('');
+        onPhotoUpdate(null); // On passe null au callback
       }
     } catch (error) {
       console.error('Erreur lors de la suppression:', error);
@@ -232,7 +262,7 @@ export function AvatarUpload({
       <div className="flex items-center space-x-4">
         <div className="relative">
           <Avatar className="h-24 w-24">
-            <AvatarImage src={photoUrl} alt={userName} />
+            <AvatarImage src={photoUrl || undefined} alt={userName} />
             <AvatarFallback className="bg-blue-100 text-blue-600 text-xl">
               {getInitials(userName)}
             </AvatarFallback>
@@ -252,7 +282,7 @@ export function AvatarUpload({
           <input
             ref={fileInputRef}
             type="file"
-            accept="image/*"
+            accept="image/jpeg,image/jpg,image/png,image/gif"
             className="hidden"
             onChange={handleFileSelect}
             disabled={uploading}
@@ -297,7 +327,15 @@ export function AvatarUpload({
       <Dialog open={showDialog} onOpenChange={(open) => {
         setShowDialog(open);
         if (!open) {
-          setPreviewUrl(null);
+          // Nettoyer les URLs d'objets pour éviter les fuites mémoire
+          if (previewUrl) {
+            URL.revokeObjectURL(previewUrl);
+            setPreviewUrl(null);
+          }
+          if (croppedPreview) {
+            URL.revokeObjectURL(croppedPreview);
+            setCroppedPreview(null);
+          }
           setZoom(1);
           setCrop({ x: 0, y: 0 });
         }
@@ -312,19 +350,42 @@ export function AvatarUpload({
           
           {previewUrl && (
             <div className="space-y-4">
-              {/* Zone de recadrage */}
-              <div className="relative h-[400px] bg-gray-100 rounded-lg overflow-hidden">
-                <Cropper
-                  image={previewUrl}
-                  crop={crop}
-                  zoom={zoom}
-                  aspect={1}
-                  cropShape="round"
-                  showGrid={false}
-                  onCropChange={setCrop}
-                  onCropComplete={onCropComplete}
-                  onZoomChange={setZoom}
-                />
+              {/* Zone de recadrage avec preview en temps réel */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Zone de recadrage */}
+                <div className="relative h-[400px] bg-gray-100 rounded-lg overflow-hidden">
+                  <Cropper
+                    image={previewUrl}
+                    crop={crop}
+                    zoom={zoom}
+                    aspect={1}
+                    cropShape="round"
+                    showGrid={false}
+                    onCropChange={setCrop}
+                    onCropComplete={onCropComplete}
+                    onZoomChange={setZoom}
+                  />
+                </div>
+                
+                {/* Aperçu du résultat */}
+                <div className="flex flex-col items-center justify-center space-y-2">
+                  <p className="text-sm font-medium text-gray-700">Aperçu final</p>
+                  <div className="relative w-32 h-32 rounded-full overflow-hidden bg-gray-100 border-2 border-gray-200">
+                    {croppedPreview ? (
+                      <img 
+                        src={croppedPreview} 
+                        alt="Aperçu final" 
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <div className="absolute inset-0 flex items-center justify-center text-gray-400">
+                        <span className="text-xs">Ajustez le recadrage</span>
+                      </div>
+                    )}
+                  </div>
+                  <p className="text-xs text-gray-500">Image finale : 800×800px</p>
+                  <p className="text-xs text-gray-400">Haute qualité</p>
+                </div>
               </div>
               
               {/* Contrôles de zoom */}
