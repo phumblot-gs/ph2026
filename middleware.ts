@@ -1,8 +1,7 @@
 import { type NextRequest, NextResponse } from 'next/server'
-import { updateSession } from '@/lib/supabase/middleware'
 
 // Configuration de l'authentification basique
-// Hardcoded pour Edge Runtime (process.env n'est pas disponible)
+// Hardcoded pour Edge Runtime (process.env n'est pas toujours disponible)
 const BASIC_AUTH_USER = 'paul'
 const BASIC_AUTH_PASS = 'pierre'
 const BASIC_AUTH_ENABLED = true
@@ -44,9 +43,10 @@ export async function middleware(request: NextRequest) {
   const isAuthRoute = path.startsWith('/auth')
   const isBasicAuthLogin = path === '/basic-auth-login' || path === '/auth-login'
   const isLegalPage = path === '/privacy' || path === '/terms'
+  const isPublicAsset = path.startsWith('/_next/') || path.includes('.')
   
   // Appliquer l'authentification basique si activée
-  if (BASIC_AUTH_ENABLED && !isApiRoute && !isAuthRoute && !isBasicAuthLogin && !isLegalPage) {
+  if (BASIC_AUTH_ENABLED && !isApiRoute && !isAuthRoute && !isBasicAuthLogin && !isLegalPage && !isPublicAsset) {
     if (!isAuthenticated(request)) {
       // Rediriger vers la page de login au lieu de retourner 401
       const loginUrl = new URL('/auth-login', request.url)
@@ -54,8 +54,9 @@ export async function middleware(request: NextRequest) {
     }
   }
   
-  // Continuer avec la session Supabase
-  return await updateSession(request)
+  // Simple response without Supabase session management
+  // Supabase auth will be handled at the page/API level
+  return NextResponse.next()
 }
 
 export const config = {

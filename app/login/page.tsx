@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { config } from '@/lib/config'
 import { AlertCircle } from 'lucide-react'
 import { signInWithGoogle, signInWithTwitter } from '@/lib/auth/providers'
+import { Footer } from '@/components/footer'
 
 export default function LoginPage() {
   const [mounted, setMounted] = useState(false)
@@ -107,8 +108,9 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-stone-50">
-      <Card className="w-full max-w-md">
+    <div className="min-h-screen flex flex-col bg-stone-50">
+      <div className="flex-1 flex items-center justify-center">
+        <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <CardTitle className="text-2xl font-serif">{config.party.name}</CardTitle>
           <CardDescription>Connexion à l'espace membre</CardDescription>
@@ -220,7 +222,9 @@ export default function LoginPage() {
             </a>
           </p>
         </CardContent>
-      </Card>
+        </Card>
+      </div>
+      <Footer />
     </div>
   )
 }
