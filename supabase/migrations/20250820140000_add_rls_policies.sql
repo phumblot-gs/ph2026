@@ -66,6 +66,12 @@ $$ LANGUAGE plpgsql SECURITY DEFINER STABLE;
 
 -- ====== POLICIES SIMPLES POUR LA TABLE MEMBERS ======
 
+-- Supprimer les policies existantes avant de les recréer
+DROP POLICY IF EXISTS "Users can insert own member" ON public.members;
+DROP POLICY IF EXISTS "Anyone can view members" ON public.members;
+DROP POLICY IF EXISTS "Users can update own member" ON public.members;
+DROP POLICY IF EXISTS "Admins can do everything on members" ON public.members;
+
 -- Permettre aux utilisateurs de créer leur propre entrée member
 CREATE POLICY "Users can insert own member" 
 ON public.members
@@ -98,6 +104,11 @@ WITH CHECK (is_admin());
 
 -- ====== POLICIES SIMPLES POUR LA TABLE USER_GROUPS ======
 
+-- Supprimer les policies existantes avant de les recréer
+DROP POLICY IF EXISTS "Users can insert into user_groups" ON public.user_groups;
+DROP POLICY IF EXISTS "Users can view own groups" ON public.user_groups;
+DROP POLICY IF EXISTS "Admins can do everything on user_groups" ON public.user_groups;
+
 -- Permettre l'insertion dans user_groups pour son propre user_id
 -- Note: La vérification du groupe public se fait dans la logique métier
 CREATE POLICY "Users can insert into user_groups" 
@@ -122,6 +133,10 @@ USING (is_admin())
 WITH CHECK (is_admin());
 
 -- ====== POLICIES SIMPLES POUR LA TABLE GROUPS ======
+
+-- Supprimer les policies existantes avant de les recréer
+DROP POLICY IF EXISTS "Anyone can view groups" ON public.groups;
+DROP POLICY IF EXISTS "Admins can do everything on groups" ON public.groups;
 
 -- Tout le monde peut voir les groupes
 CREATE POLICY "Anyone can view groups" 
