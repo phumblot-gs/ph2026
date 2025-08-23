@@ -265,24 +265,48 @@ GRANT UPDATE (slack_channel_id) ON groups TO authenticated;
 -- ==========================================
 
 -- Vérifier que slack_user_id a le bon format (commence par U)
-ALTER TABLE members 
-  ADD CONSTRAINT check_slack_user_id_format 
-  CHECK (slack_user_id IS NULL OR slack_user_id ~ '^U[A-Z0-9]+$');
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint 
+    WHERE conname = 'check_slack_user_id_format'
+  ) THEN
+    ALTER TABLE members 
+      ADD CONSTRAINT check_slack_user_id_format 
+      CHECK (slack_user_id IS NULL OR slack_user_id ~ '^U[A-Z0-9]+$');
+  END IF;
+END $$;
 
 -- Vérifier que slack_channel_id a le bon format (commence par C)
-ALTER TABLE groups 
-  ADD CONSTRAINT check_slack_channel_id_format 
-  CHECK (slack_channel_id IS NULL OR slack_channel_id ~ '^C[A-Z0-9]+$');
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint 
+    WHERE conname = 'check_slack_channel_id_format'
+  ) THEN
+    ALTER TABLE groups 
+      ADD CONSTRAINT check_slack_channel_id_format 
+      CHECK (slack_channel_id IS NULL OR slack_channel_id ~ '^C[A-Z0-9]+$');
+  END IF;
+END $$;
 
 -- Vérifier que action_type est valide
-ALTER TABLE slack_activity_log
-  ADD CONSTRAINT check_action_type_valid
-  CHECK (action_type IN (
-    'connect', 'disconnect', 
-    'channel_created', 'channel_deleted', 
-    'user_added', 'user_removed',
-    'channel_sync', 'message_sent'
-  ));
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint 
+    WHERE conname = 'check_action_type_valid'
+  ) THEN
+    ALTER TABLE slack_activity_log
+      ADD CONSTRAINT check_action_type_valid
+      CHECK (action_type IN (
+        'connect', 'disconnect', 
+        'channel_created', 'channel_deleted', 
+        'user_added', 'user_removed',
+        'channel_sync', 'message_sent'
+      ));
+  END IF;
+END $$;
 
 -- ==========================================
 -- 10. Indexes supplémentaires pour performance
