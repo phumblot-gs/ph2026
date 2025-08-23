@@ -64,15 +64,20 @@ CREATE TABLE IF NOT EXISTS app_settings_donation (
 -- Index pour le tri
 CREATE INDEX IF NOT EXISTS idx_app_settings_donation_order ON app_settings_donation(display_order, amount);
 
--- Insérer les exemples de dons par défaut
-INSERT INTO app_settings_donation (amount, title, description, display_order) VALUES
-  (5, 'Un coup de pouce bienvenu', 'Chaque euro compte pour faire avancer nos idées', 1),
-  (20, 'Communication digitale', 'Nos messages diffusés pendant 3 jours sur les réseaux sociaux', 2),
-  (100, 'Mobilisation terrain', 'Impression de tracts pour 1 journée d''actions sur le terrain', 3),
-  (500, 'Un événement local', 'Organisation d''une rencontre citoyenne dans votre quartier', 4),
-  (1000, 'Donateur officiel', 'Vous devenez donateur officiel de la campagne', 5),
-  (4000, 'Grand donateur', 'Vous devenez grand donateur de la campagne', 6)
-ON CONFLICT (amount) DO NOTHING;
+-- Insérer les exemples de dons par défaut (seulement s'ils n'existent pas déjà)
+DO $$
+BEGIN
+  -- Vérifier si les données existent déjà
+  IF NOT EXISTS (SELECT 1 FROM app_settings_donation WHERE amount IN (5, 20, 100, 500, 1000, 4000)) THEN
+    INSERT INTO app_settings_donation (amount, title, description, display_order) VALUES
+      (5, 'Un coup de pouce bienvenu', 'Chaque euro compte pour faire avancer nos idées', 1),
+      (20, 'Communication digitale', 'Nos messages diffusés pendant 3 jours sur les réseaux sociaux', 2),
+      (100, 'Mobilisation terrain', 'Impression de tracts pour 1 journée d''actions sur le terrain', 3),
+      (500, 'Un événement local', 'Organisation d''une rencontre citoyenne dans votre quartier', 4),
+      (1000, 'Donateur officiel', 'Vous devenez donateur officiel de la campagne', 5),
+      (4000, 'Grand donateur', 'Vous devenez grand donateur de la campagne', 6);
+  END IF;
+END $$;
 
 -- 5. Créer une table pour stocker temporairement les données de checkout
 CREATE TABLE IF NOT EXISTS checkout_sessions (
