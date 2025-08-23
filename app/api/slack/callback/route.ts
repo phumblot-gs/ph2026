@@ -49,7 +49,9 @@ export async function GET(request: NextRequest) {
 
     // Récupérer les informations de l'utilisateur Slack
     const userClient = new WebClient(tokenData.authed_user?.access_token || tokenData.access_token);
-    const identityResult = await userClient.users.identity();
+    const identityResult = await userClient.users.identity({
+      token: tokenData.authed_user?.access_token || tokenData.access_token
+    });
 
     if (!identityResult.ok || !identityResult.user) {
       throw new Error('Failed to get user identity');
