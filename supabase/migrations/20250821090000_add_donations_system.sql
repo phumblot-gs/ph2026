@@ -62,7 +62,7 @@ CREATE TABLE IF NOT EXISTS app_settings_donation (
 );
 
 -- Index pour le tri
-CREATE INDEX idx_app_settings_donation_order ON app_settings_donation(display_order, amount);
+CREATE INDEX IF NOT EXISTS idx_app_settings_donation_order ON app_settings_donation(display_order, amount);
 
 -- Insérer les exemples de dons par défaut
 INSERT INTO app_settings_donation (amount, title, description, display_order) VALUES
@@ -215,15 +215,19 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Appliquer le trigger aux nouvelles tables
+DROP TRIGGER IF EXISTS update_donations_updated_at ON donations;
 CREATE TRIGGER update_donations_updated_at BEFORE UPDATE ON donations
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_app_settings_updated_at ON app_settings;
 CREATE TRIGGER update_app_settings_updated_at BEFORE UPDATE ON app_settings
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_app_settings_donation_updated_at ON app_settings_donation;
 CREATE TRIGGER update_app_settings_donation_updated_at BEFORE UPDATE ON app_settings_donation
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_checkout_sessions_updated_at ON checkout_sessions;
 CREATE TRIGGER update_checkout_sessions_updated_at BEFORE UPDATE ON checkout_sessions
   FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 

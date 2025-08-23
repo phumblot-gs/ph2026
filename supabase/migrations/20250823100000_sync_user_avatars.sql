@@ -55,6 +55,7 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- 5. Créer le trigger pour synchroniser les avatars
+DROP TRIGGER IF EXISTS sync_avatar_on_member_update ON public.members;
 CREATE TRIGGER sync_avatar_on_member_update
   AFTER UPDATE OF photo_url ON public.members
   FOR EACH ROW

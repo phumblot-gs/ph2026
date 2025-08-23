@@ -222,11 +222,13 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- 10. TRIGGERS POUR METTRE À JOUR updated_at
 -- ============================================
+DROP TRIGGER IF EXISTS update_members_updated_at ON public.members;
 CREATE TRIGGER update_members_updated_at
   BEFORE UPDATE ON public.members
   FOR EACH ROW
   EXECUTE FUNCTION update_updated_at_column();
 
+DROP TRIGGER IF EXISTS update_groups_updated_at ON public.groups;
 CREATE TRIGGER update_groups_updated_at
   BEFORE UPDATE ON public.groups
   FOR EACH ROW

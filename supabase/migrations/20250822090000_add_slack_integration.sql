@@ -231,6 +231,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS update_slack_app_config_updated_at ON slack_app_config;
 CREATE TRIGGER update_slack_app_config_updated_at
   BEFORE UPDATE ON slack_app_config
   FOR EACH ROW
