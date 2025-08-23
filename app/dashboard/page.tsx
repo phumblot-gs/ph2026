@@ -133,11 +133,15 @@ export default async function DashboardPage() {
             {/* Messages Slack des groupes */}
             <div>
               <GroupSlackMessages 
-                groups={userGroups?.map(ug => ({
-                  id: ug.groups?.id || '',
-                  name: ug.groups?.name || '',
-                  slack_channel_id: ug.groups?.slack_channel_id || null
-                })) || []}
+                groups={userGroups?.map(ug => {
+                  // Type assertion car Supabase retourne un type générique pour les relations
+                  const group = ug.groups as unknown as { id: string; name: string; slack_channel_id: string | null } | null;
+                  return {
+                    id: group?.id || '',
+                    name: group?.name || '',
+                    slack_channel_id: group?.slack_channel_id || null
+                  };
+                }) || []}
                 isSlackConnected={!!member?.slack_user_id}
               />
             </div>

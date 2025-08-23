@@ -160,11 +160,18 @@ export async function getChannelMessages(
         })
       );
 
-      // Mapper les infos utilisateur aux messages
-      return messages.map(msg => ({
-        ...msg,
-        user_profile: userInfos.find(u => u?.id === msg.user) || undefined,
-      }));
+      // Mapper les infos utilisateur aux messages avec le bon format
+      return messages.map(msg => {
+        const userInfo = userInfos.find(u => u?.id === msg.user);
+        return {
+          ...msg,
+          user_profile: userInfo ? {
+            name: userInfo.name || '',
+            real_name: userInfo.real_name || userInfo.name || '',
+            image_48: (userInfo.profile as any)?.image_48 || ''
+          } : undefined,
+        };
+      });
     }
     return [];
   } catch (error) {

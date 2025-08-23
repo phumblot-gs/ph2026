@@ -35,8 +35,10 @@ export async function checkSlackFeatures(): Promise<SlackFeatures> {
       throw new Error('Auth test failed');
     }
 
-    // Vérifier les scopes disponibles
-    const scopes = authTest.scopes || [];
+    // Les scopes sont retournés dans une propriété différente selon le type de token
+    // Pour les tokens OAuth v2, ils sont dans la réponse auth.test
+    const authTestWithScopes = authTest as any;
+    const scopes: string[] = authTestWithScopes.scopes || [];
     
     return {
       // Les scopes admin indiquent un workspace payant

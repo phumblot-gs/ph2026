@@ -60,6 +60,10 @@ export async function GET(request: NextRequest) {
     const slackUserId = identityResult.user.id;
     const slackUserToken = tokenData.authed_user?.access_token || tokenData.access_token;
 
+    if (!slackUserId) {
+      throw new Error('Slack user ID not found');
+    }
+
     // Mettre à jour le membre dans la base de données
     const { error: updateError } = await supabase
       .from('members')
@@ -126,12 +130,14 @@ async function addUserToGroupChannels(userId: string, slackUserId: string) {
 
   // Ajouter l'utilisateur à chaque canal
   for (const userGroup of userGroups) {
-    if (userGroup.groups?.slack_channel_id) {
+    // Supabase retourne un objet unique pour une relation many-to-one
+    const group = userGroup.groups as unknown as { id: string; name: string; slack_channel_id: string | null } | null;
+    if (group?.slack_channel_id) {
       try {
-        await addUserToChannel(userGroup.groups.slack_channel_id, slackUserId);
-        console.log(`Added user ${slackUserId} to channel ${userGroup.groups.slack_channel_id}`);
+        await addUserToChannel(group.slack_channel_id, slackUserId);
+        console.log(`Added user ${slackUserId} to channel ${group.slack_channel_id}`);
       } catch (error) {
-        console.error(`Failed to add user to channel ${userGroup.groups.slack_channel_id}:`, error);
+        console.error(`Failed to add user to channel ${group.slack_channel_id}:`, error);
       }
     }
   }

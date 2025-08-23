@@ -200,11 +200,13 @@ async function addGroupMembersToChannel(groupId: string, channelId: string) {
 
   // Ajouter chaque membre au canal
   for (const member of members) {
-    if (member.members?.slack_user_id) {
+    // Type assertion car Supabase retourne un type générique pour les relations
+    const memberData = member.members as unknown as { slack_user_id: string | null } | null;
+    if (memberData?.slack_user_id) {
       try {
-        await addUserToChannel(channelId, member.members.slack_user_id);
+        await addUserToChannel(channelId, memberData.slack_user_id);
       } catch (error) {
-        console.error(`Failed to add user ${member.members.slack_user_id} to channel:`, error);
+        console.error(`Failed to add user ${memberData.slack_user_id} to channel:`, error);
       }
     }
   }

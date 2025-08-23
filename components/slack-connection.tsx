@@ -61,11 +61,15 @@ export function SlackConnection({ userId }: SlackConnectionProps) {
       connected: !!member?.slack_user_id,
       userId: member?.slack_user_id || undefined,
       connectedAt: member?.slack_connected_at || undefined,
-      groups: userGroups?.map(ug => ({
-        id: ug.groups?.id || '',
-        name: ug.groups?.name || '',
-        hasChannel: !!ug.groups?.slack_channel_id
-      })) || []
+      groups: userGroups?.map(ug => {
+        // Type assertion car Supabase retourne un type générique pour les relations
+        const group = ug.groups as unknown as { id: string; name: string; slack_channel_id: string | null } | null;
+        return {
+          id: group?.id || '',
+          name: group?.name || '',
+          hasChannel: !!group?.slack_channel_id
+        };
+      }) || []
     });
     
     setLoading(false);

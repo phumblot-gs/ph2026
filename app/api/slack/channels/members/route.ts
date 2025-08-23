@@ -223,12 +223,14 @@ export async function PUT(request: NextRequest) {
 
     // Ajouter chaque membre au canal
     for (const groupMember of members) {
-      if (groupMember.members?.slack_user_id) {
+      // Type assertion car Supabase retourne un type générique pour les relations
+      const member = groupMember.members as unknown as { slack_user_id: string | null } | null;
+      if (member?.slack_user_id) {
         try {
-          const success = await addUserToChannel(channelId, groupMember.members.slack_user_id);
+          const success = await addUserToChannel(channelId, member.slack_user_id);
           if (success) added++;
         } catch (error) {
-          console.error(`Failed to add user ${groupMember.members.slack_user_id}:`, error);
+          console.error(`Failed to add user ${member.slack_user_id}:`, error);
           errors++;
         }
       }
