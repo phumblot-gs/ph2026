@@ -37,8 +37,9 @@ export async function POST(request: NextRequest) {
 
     // Envoyer une invitation par email
     // Note: Cette API nécessite le scope admin.invites:write
+    // On doit fournir au moins un canal, on utilise le canal général #tous-nous-parisiens
     const result = await slackBotClient.admin.users.invite({
-      channel_ids: [], // Pas de canaux spécifiques pour l'instant
+      channel_ids: ['C09BSD59352'], // Canal #tous-nous-parisiens obligatoire
       email: member.email,
       team_id: process.env.NEXT_PUBLIC_SLACK_TEAM_ID!,
       custom_message: `Bienvenue sur l'espace Slack de ${process.env.NEXT_PUBLIC_PARTY_NAME} ! Cliquez sur le lien ci-dessous pour rejoindre notre équipe.`,
