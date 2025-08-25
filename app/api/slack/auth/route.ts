@@ -42,7 +42,9 @@ export async function GET(request: NextRequest) {
     state: state,
   });
 
-  const authUrl = `https://slack.com/oauth/v2/authorize?${params.toString()}`;
+  // Utiliser le domaine du workspace pour éviter la page de sélection
+  const teamDomain = process.env.NEXT_PUBLIC_SLACK_TEAM_DOMAIN || 'nousparisiens';
+  const authUrl = `https://${teamDomain}.slack.com/oauth/v2/authorize?${params.toString()}`;
 
   // Rediriger vers Slack pour l'authentification
   return NextResponse.redirect(authUrl);

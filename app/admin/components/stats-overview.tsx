@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Euro, Users, TrendingUp, Heart, Calendar } from 'lucide-react';
+import { Euro, Users, TrendingUp, Heart, MessageSquare } from 'lucide-react';
 
 export default async function StatsOverview() {
   const supabase = await createClient();
@@ -19,14 +19,11 @@ export default async function StatsOverview() {
   
   const totalAmount = totalDonations?.reduce((sum, d) => sum + Number(d.amount), 0) || 0;
   
-  // This month's donations
-  const { data: monthDonations } = await supabase
-    .from('donations')
-    .select('amount, created_at')
-    .eq('status', 'completed')
-    .gte('created_at', `${currentYear}-${String(currentMonth).padStart(2, '0')}-01`);
-  
-  const monthAmount = monthDonations?.reduce((sum, d) => sum + Number(d.amount), 0) || 0;
+  // Pending Slack invitations
+  const { count: pendingInvitations } = await supabase
+    .from('slack_invitations')
+    .select('*', { count: 'exact', head: true })
+    .eq('status', 'pending');
   
   // Total members
   const { count: totalMembers } = await supabase
@@ -55,14 +52,6 @@ export default async function StatsOverview() {
       bgColor: 'bg-green-50',
     },
     {
-      title: 'Ce mois-ci',
-      value: `${monthAmount.toLocaleString('fr-FR')}€`,
-      description: `${monthDonations?.length || 0} dons ce mois`,
-      icon: Calendar,
-      color: 'text-blue-600',
-      bgColor: 'bg-blue-50',
-    },
-    {
       title: 'Donateurs uniques',
       value: uniqueDonorCount.toString(),
       description: `Sur ${totalMembers || 0} membres`,
@@ -85,6 +74,14 @@ export default async function StatsOverview() {
       icon: Users,
       color: 'text-indigo-600',
       bgColor: 'bg-indigo-50',
+    },
+    {
+      title: 'Invitations Slack',
+      value: (pendingInvitations || 0).toString(),
+      description: pendingInvitations ? 'En attente de traitement' : 'Aucune en attente',
+      icon: MessageSquare,
+      color: pendingInvitations ? 'text-orange-600' : 'text-gray-600',
+      bgColor: pendingInvitations ? 'bg-orange-50' : 'bg-gray-50',
     },
   ];
   
