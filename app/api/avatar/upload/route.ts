@@ -28,9 +28,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Le fichier ne doit pas dépasser 5MB' }, { status: 400 });
     }
 
-    // Générer un nom de fichier unique
+    // Générer un nom de fichier unique dans un dossier utilisateur
     const fileExt = file.name.split('.').pop();
-    const fileName = `${user.id}-${Date.now()}.${fileExt}`;
+    const fileName = `${user.id}/avatar-${Date.now()}.${fileExt}`;
 
     // Convertir le fichier en buffer
     const buffer = Buffer.from(await file.arrayBuffer());
