@@ -224,23 +224,58 @@ export default function SettingsTab() {
     }
   }
   
-  async function saveSetting(key: string, value: string) {
+  async function saveAllSettings() {
     setSaving(true);
     const supabase = createClient();
     
-    const { error } = await supabase
-      .from('app_settings')
-      .update({ 
-        setting_value: value,
-        updated_at: new Date().toISOString()
-      })
-      .eq('setting_key', key);
-    
-    if (error) {
+    try {
+      // Get existing settings to know which ones to update vs insert
+      const { data: existingSettings } = await supabase
+        .from('app_settings')
+        .select('setting_key');
+      
+      const existingKeys = new Set(existingSettings?.map(s => s.setting_key) || []);
+      
+      // Process each setting
+      for (const [key, value] of Object.entries(settings)) {
+        let error;
+        
+        if (existingKeys.has(key)) {
+          // Update existing setting
+          const result = await supabase
+            .from('app_settings')
+            .update({ 
+              setting_value: value as string,
+              updated_at: new Date().toISOString()
+            })
+            .eq('setting_key', key);
+          error = result.error;
+        } else {
+          // Insert new setting
+          const result = await supabase
+            .from('app_settings')
+            .insert({ 
+              setting_key: key,
+              setting_value: value as string,
+              updated_at: new Date().toISOString()
+            });
+          error = result.error;
+        }
+        
+        if (error) {
+          console.error(`Error saving ${key}:`, error);
+          setMessage({ type: 'error', text: `Erreur lors de la sauvegarde de ${key}` });
+          setSaving(false);
+          setTimeout(() => setMessage(null), 3000);
+          return;
+        }
+      }
+      
+      setMessage({ type: 'success', text: 'Paramètres sauvegardés' });
+      await loadSettings(); // Reload to ensure consistency
+    } catch (error) {
+      console.error('Error saving settings:', error);
       setMessage({ type: 'error', text: 'Erreur lors de la sauvegarde' });
-    } else {
-      setSettings({ ...settings, [key]: value });
-      setMessage({ type: 'success', text: 'Paramètre sauvegardé' });
     }
     
     setSaving(false);
@@ -344,7 +379,7 @@ export default function SettingsTab() {
   }
   
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" suppressHydrationWarning>
       {/* Success/Error Message */}
       {message && (
         <div className={`flex items-center p-4 rounded-lg ${
@@ -373,66 +408,77 @@ export default function SettingsTab() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4" suppressHydrationWarning>
             <div>
               <Label htmlFor="support_email">Email de support</Label>
-              <div className="flex gap-2 mt-1">
-                <Input
-                  id="support_email"
-                  type="email"
-                  value={settings.support_email || ''}
-                  onChange={(e) => setSettings({ ...settings, support_email: e.target.value })}
-                  placeholder="support@exemple.fr"
-                />
-                <Button
-                  size="sm"
-                  onClick={() => saveSetting('support_email', settings.support_email)}
-                  disabled={saving}
-                >
-                  <Save className="h-4 w-4" />
-                </Button>
-              </div>
+              <Input
+                id="support_email"
+                type="email"
+                value={settings.support_email || ''}
+                onChange={(e) => setSettings({ ...settings, support_email: e.target.value })}
+                placeholder="support@exemple.fr"
+                className="mt-1"
+              />
+            </div>
+            
+            <div>
+              <Label htmlFor="website_url">URL du site web</Label>
+              <Input
+                id="website_url"
+                type="url"
+                value={settings.website_url || ''}
+                onChange={(e) => setSettings({ ...settings, website_url: e.target.value })}
+                placeholder="https://exemple.fr"
+                className="mt-1"
+              />
+            </div>
+            
+            <div>
+              <Label htmlFor="highlight_url">URL mise en avant</Label>
+              <Input
+                id="highlight_url"
+                type="url"
+                value={settings.highlight_url || ''}
+                onChange={(e) => setSettings({ ...settings, highlight_url: e.target.value })}
+                placeholder="https://site-externe.fr"
+                className="mt-1"
+              />
             </div>
             
             <div>
               <Label htmlFor="donation_yearly_limit">Plafond annuel (€)</Label>
-              <div className="flex gap-2 mt-1">
-                <Input
-                  id="donation_yearly_limit"
-                  type="number"
-                  value={settings.donation_yearly_limit || '7500'}
-                  onChange={(e) => setSettings({ ...settings, donation_yearly_limit: e.target.value })}
-                  placeholder="7500"
-                />
-                <Button
-                  size="sm"
-                  onClick={() => saveSetting('donation_yearly_limit', settings.donation_yearly_limit)}
-                  disabled={saving}
-                >
-                  <Save className="h-4 w-4" />
-                </Button>
-              </div>
+              <Input
+                id="donation_yearly_limit"
+                type="number"
+                value={settings.donation_yearly_limit || '7500'}
+                onChange={(e) => setSettings({ ...settings, donation_yearly_limit: e.target.value })}
+                placeholder="7500"
+                className="mt-1"
+              />
             </div>
             
             <div>
               <Label htmlFor="donation_minimum_age">Âge minimum</Label>
-              <div className="flex gap-2 mt-1">
-                <Input
-                  id="donation_minimum_age"
-                  type="number"
-                  value={settings.donation_minimum_age || '18'}
-                  onChange={(e) => setSettings({ ...settings, donation_minimum_age: e.target.value })}
-                  placeholder="18"
-                />
-                <Button
-                  size="sm"
-                  onClick={() => saveSetting('donation_minimum_age', settings.donation_minimum_age)}
-                  disabled={saving}
-                >
-                  <Save className="h-4 w-4" />
-                </Button>
-              </div>
+              <Input
+                id="donation_minimum_age"
+                type="number"
+                value={settings.donation_minimum_age || '18'}
+                onChange={(e) => setSettings({ ...settings, donation_minimum_age: e.target.value })}
+                placeholder="18"
+                className="mt-1"
+              />
             </div>
+          </div>
+          
+          <div className="flex justify-end pt-4">
+            <Button
+              onClick={saveAllSettings}
+              disabled={saving}
+              className="flex items-center gap-2"
+            >
+              <Save className="h-4 w-4" />
+              Enregistrer les paramètres
+            </Button>
           </div>
         </CardContent>
       </Card>
@@ -450,9 +496,9 @@ export default function SettingsTab() {
         </CardHeader>
         <CardContent>
           {/* Add new example form */}
-          <div className="mb-6 p-4 bg-gray-50 rounded-lg">
+          <div className="mb-6 p-4 bg-gray-50 rounded-lg" suppressHydrationWarning>
             <h3 className="font-medium mb-3">Ajouter un exemple</h3>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-3" suppressHydrationWarning>
               <Input
                 type="number"
                 placeholder="Montant (€)"

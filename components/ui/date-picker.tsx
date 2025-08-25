@@ -3,7 +3,7 @@
 import * as React from "react";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
-import { Calendar as CalendarIcon, ChevronLeft, ChevronRight } from "lucide-react";
+import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, X } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -105,6 +105,7 @@ export function DatePicker({
             variant={"outline"}
             className={cn(
               "w-full justify-start text-left font-normal pl-10",
+              date && "pr-10",
               !date && "text-muted-foreground"
             )}
             disabled={disabled}
@@ -112,6 +113,19 @@ export function DatePicker({
             {date ? format(date, "dd MMMM yyyy", { locale: fr }) : <span>{placeholder}</span>}
           </Button>
           <CalendarIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+          {date && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleSelect(undefined);
+              }}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 z-10"
+              disabled={disabled}
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
         </div>
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0" align="start">

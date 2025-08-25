@@ -1,4 +1,17 @@
-export default function PrivacyPage() {
+import { createClient } from '@/lib/supabase/server'
+
+export default async function PrivacyPage() {
+  const supabase = await createClient()
+  
+  // Récupérer l'email de support depuis les paramètres
+  const { data: settings } = await supabase
+    .from('settings')
+    .select('setting_value')
+    .eq('setting_key', 'support_email')
+    .single()
+  
+  const supportEmail = settings?.setting_value || 'contact@nous-parisiens.fr'
+
   return (
     <div className="container mx-auto px-4 py-8 max-w-4xl">
       <h1 className="text-3xl font-bold mb-6">Politique de confidentialité</h1>
@@ -33,7 +46,7 @@ export default function PrivacyPage() {
         <p>Conformément au RGPD, vous disposez d'un droit d'accès, de rectification et de suppression de vos données.</p>
         
         <h2>6. Contact</h2>
-        <p>Pour toute question : contact@ph2026.fr</p>
+        <p>Pour toute question : {supportEmail}</p>
       </div>
     </div>
   )

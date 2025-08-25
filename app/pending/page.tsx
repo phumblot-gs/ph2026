@@ -31,6 +31,15 @@ export default async function PendingPage() {
     }
   }
 
+  // Récupérer l'email de support depuis les paramètres
+  const { data: settings } = await supabase
+    .from('settings')
+    .select('setting_value')
+    .eq('setting_key', 'support_email')
+    .single()
+  
+  const supportEmail = settings?.setting_value || 'contact@nous-parisiens.fr'
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-stone-50 to-white flex items-center justify-center p-4">
       <div className="max-w-2xl w-full">
@@ -105,8 +114,8 @@ export default async function PendingPage() {
             <div className="border-t pt-6">
               <p className="text-xs text-center text-muted-foreground">
                 Si vous avez des questions, n'hésitez pas à nous contacter à{' '}
-                <a href="mailto:contact@ph2026.fr" className="font-medium hover:text-primary">
-                  contact@ph2026.fr
+                <a href={`mailto:${supportEmail}`} className="font-medium hover:text-primary">
+                  {supportEmail}
                 </a>
               </p>
             </div>
