@@ -1,4 +1,18 @@
-export default function TermsPage() {
+import { createClient } from '@/lib/supabase/server'
+import { config } from '@/lib/config'
+
+export default async function TermsPage() {
+  const supabase = await createClient()
+  
+  // Récupérer l'email de support depuis les paramètres
+  const { data: settings } = await supabase
+    .from('settings')
+    .select('setting_value')
+    .eq('setting_key', 'support_email')
+    .single()
+  
+  const supportEmail = settings?.setting_value || 'contact@nous-parisiens.fr'
+
   return (
     <div className="container mx-auto px-4 py-8 max-w-4xl">
       <h1 className="text-3xl font-bold mb-6">Conditions d'utilisation</h1>
@@ -10,7 +24,7 @@ export default function TermsPage() {
         <p>En utilisant ce site, vous acceptez les présentes conditions d'utilisation.</p>
         
         <h2>2. Description du service</h2>
-        <p>PH2026 est une plateforme de mobilisation citoyenne pour la campagne municipale de Paris 2026.</p>
+        <p>{config.party.name} est une plateforme de mobilisation citoyenne pour la campagne municipale de Paris 2026.</p>
         
         <h2>3. Inscription</h2>
         <p>L'inscription est gratuite et ouverte à toute personne majeure. Vous vous engagez à fournir des informations exactes.</p>
@@ -37,7 +51,7 @@ export default function TermsPage() {
         <p>Ces conditions sont régies par le droit français.</p>
         
         <h2>9. Contact</h2>
-        <p>Pour toute question : contact@ph2026.fr</p>
+        <p>Pour toute question : {supportEmail}</p>
       </div>
     </div>
   )

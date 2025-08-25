@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { ArrowLeft, Save, Loader2 } from 'lucide-react'
+import { ArrowLeft, Save, Loader2, X } from 'lucide-react'
 import { AdminNav } from '@/components/admin-nav'
 import { PhoneInput } from '@/components/ui/phone-input'
 import { DatePicker } from '@/components/ui/date-picker'
@@ -116,16 +116,16 @@ export default function EditMemberPage() {
     const { error } = await supabase
       .from('members')
       .update({
-        first_name: formData.first_name,
-        last_name: formData.last_name,
-        phone: formData.phone,
+        first_name: formData.first_name || null,
+        last_name: formData.last_name || null,
+        phone: formData.phone || null,
         birth_date: formData.birth_date || null,
-        address_line1: formData.address_line1,
-        address_line2: formData.address_line2,
-        postal_code: formData.postal_code,
-        city: formData.city,
-        country: formData.country,
-        google_place_id: formData.google_place_id,
+        address_line1: formData.address_line1 || null,
+        address_line2: formData.address_line2 || null,
+        postal_code: formData.postal_code || null,
+        city: formData.city || null,
+        country: formData.country || null,
+        google_place_id: formData.google_place_id || null,
         role: formData.role,
         status: formData.status,
         updated_at: new Date().toISOString()
@@ -191,28 +191,54 @@ export default function EditMemberPage() {
                     <Label htmlFor="first_name">
                       Prénom
                     </Label>
-                    <Input
-                      id="first_name"
-                      type="text"
-                      value={formData.first_name}
-                      onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
-                      placeholder="Prénom"
-                      disabled={saving}
-                    />
+                    <div className="relative">
+                      <Input
+                        id="first_name"
+                        type="text"
+                        value={formData.first_name}
+                        onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
+                        placeholder="Prénom"
+                        disabled={saving}
+                        className="pr-10"
+                      />
+                      {formData.first_name && (
+                        <button
+                          type="button"
+                          onClick={() => setFormData({ ...formData, first_name: '' })}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                          disabled={saving}
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      )}
+                    </div>
                   </div>
                   
                   <div>
                     <Label htmlFor="last_name">
                       Nom
                     </Label>
-                    <Input
-                      id="last_name"
-                      type="text"
-                      value={formData.last_name}
-                      onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
-                      placeholder="Nom"
-                      disabled={saving}
-                    />
+                    <div className="relative">
+                      <Input
+                        id="last_name"
+                        type="text"
+                        value={formData.last_name}
+                        onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
+                        placeholder="Nom"
+                        disabled={saving}
+                        className="pr-10"
+                      />
+                      {formData.last_name && (
+                        <button
+                          type="button"
+                          onClick={() => setFormData({ ...formData, last_name: '' })}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                          disabled={saving}
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
                 
@@ -278,14 +304,27 @@ export default function EditMemberPage() {
                     <Label htmlFor="address_line2">
                       Complément d'adresse (optionnel)
                     </Label>
-                    <Input
-                      id="address_line2"
-                      type="text"
-                      value={formData.address_line2}
-                      onChange={(e) => setFormData({ ...formData, address_line2: e.target.value })}
-                      disabled={saving}
-                      placeholder="Bâtiment, étage, appartement..."
-                    />
+                    <div className="relative">
+                      <Input
+                        id="address_line2"
+                        type="text"
+                        value={formData.address_line2}
+                        onChange={(e) => setFormData({ ...formData, address_line2: e.target.value })}
+                        disabled={saving}
+                        placeholder="Bâtiment, étage, appartement..."
+                        className={formData.address_line2 ? 'pr-10' : ''}
+                      />
+                      {formData.address_line2 && (
+                        <button
+                          type="button"
+                          onClick={() => setFormData({ ...formData, address_line2: '' })}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                          disabled={saving}
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
                 
