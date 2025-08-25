@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Phone, AlertCircle } from 'lucide-react';
+import { Phone, AlertCircle, X } from 'lucide-react';
 import { parsePhoneNumber, isValidPhoneNumber, AsYouType } from 'libphonenumber-js';
 
 interface PhoneInputProps {
@@ -114,9 +114,23 @@ export function PhoneInput({
           onBlur={handleBlur}
           disabled={disabled}
           placeholder={placeholder}
-          className={`pl-10 ${showError ? 'border-red-500 focus:ring-red-500' : ''}`}
+          className={`pl-10 ${displayValue ? 'pr-10' : ''} ${showError ? 'border-red-500 focus:ring-red-500' : ''}`}
         />
         <Phone className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+        {displayValue && !showError && (
+          <button
+            type="button"
+            onClick={() => {
+              setDisplayValue('');
+              onChange('');
+              setIsValid(true);
+            }}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+            disabled={disabled}
+          >
+            <X className="h-4 w-4" />
+          </button>
+        )}
         {showError && (
           <AlertCircle className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-red-500" />
         )}

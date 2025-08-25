@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { ArrowLeft, Save, Loader2, User, Mail, MapPin, Calendar, Phone } from 'lucide-react'
+import { ArrowLeft, Save, Loader2, User, Mail, MapPin, Calendar, Phone, X } from 'lucide-react'
 import { AddressAutocomplete } from '@/components/ui/address-autocomplete'
 import { PhoneInput } from '@/components/ui/phone-input'
 import { DatePicker } from '@/components/ui/date-picker'
@@ -123,12 +123,12 @@ export default function ProfilePage() {
         last_name: formData.last_name,
         phone: formData.phone,
         birth_date: formData.birth_date || null,
-        address_line1: formData.address_line1,
-        address_line2: formData.address_line2,
-        postal_code: formData.postal_code,
-        city: formData.city,
-        country: formData.country,
-        google_place_id: formData.google_place_id,
+        address_line1: formData.address_line1 || null,
+        address_line2: formData.address_line2 || null,
+        postal_code: formData.postal_code || null,
+        city: formData.city || null,
+        country: formData.country || null,
+        google_place_id: formData.google_place_id || null,
         updated_at: new Date().toISOString()
       })
       .eq('user_id', user.id)
@@ -201,28 +201,54 @@ export default function ProfilePage() {
                   <Label htmlFor="first_name">
                     Prénom
                   </Label>
-                  <Input
-                    id="first_name"
-                    type="text"
-                    value={formData.first_name}
-                    onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
-                    placeholder="Votre prénom"
-                    disabled={saving}
-                  />
+                  <div className="relative">
+                    <Input
+                      id="first_name"
+                      type="text"
+                      value={formData.first_name}
+                      onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
+                      placeholder="Votre prénom"
+                      disabled={saving}
+                      className="pr-10"
+                    />
+                    {formData.first_name && (
+                      <button
+                        type="button"
+                        onClick={() => setFormData({ ...formData, first_name: '' })}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                        disabled={saving}
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
                 </div>
                 
                 <div>
                   <Label htmlFor="last_name">
                     Nom
                   </Label>
-                  <Input
-                    id="last_name"
-                    type="text"
-                    value={formData.last_name}
-                    onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
-                    placeholder="Votre nom"
-                    disabled={saving}
-                  />
+                  <div className="relative">
+                    <Input
+                      id="last_name"
+                      type="text"
+                      value={formData.last_name}
+                      onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
+                      placeholder="Votre nom"
+                      disabled={saving}
+                      className="pr-10"
+                    />
+                    {formData.last_name && (
+                      <button
+                        type="button"
+                        onClick={() => setFormData({ ...formData, last_name: '' })}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                        disabled={saving}
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
               

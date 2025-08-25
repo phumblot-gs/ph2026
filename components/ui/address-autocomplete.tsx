@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { MapPin, Loader2 } from 'lucide-react';
+import { MapPin, Loader2, X } from 'lucide-react';
 import { autocompleteAddress, getPlaceDetails, parseAddressComponents } from '@/lib/google/places-client';
 import type { GooglePlacePrediction } from '@/lib/types/donations';
 
@@ -160,7 +160,7 @@ export function AddressAutocomplete({
   return (
     <div className="relative">
       <Label htmlFor="address">
-        Adresse <span className="text-red-500">*</span>
+        Adresse
       </Label>
       <div className="relative mt-1">
         <Input
@@ -170,15 +170,47 @@ export function AddressAutocomplete({
           onChange={(e) => {
             setInputValue(e.target.value);
             setUserHasTyped(true);
+            // If the user clears the field, notify parent to clear address data
+            if (e.target.value === '') {
+              onAddressSelect({
+                address_line1: '',
+                address_line2: '',
+                postal_code: '',
+                city: '',
+                country: '',
+                google_place_id: ''
+              });
+            }
           }}
           onKeyDown={handleKeyDown}
           onFocus={() => userHasTyped && predictions.length > 0 && setShowSuggestions(true)}
           placeholder="Commencez à taper votre adresse..."
           disabled={disabled}
           required={required}
-          className="pl-10"
+          className={`pl-10 ${inputValue ? 'pr-10' : ''}`}
         />
         <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+        {inputValue && (
+          <button
+            type="button"
+            onClick={() => {
+              setInputValue('');
+              setUserHasTyped(true);
+              onAddressSelect({
+                address_line1: '',
+                address_line2: '',
+                postal_code: '',
+                city: '',
+                country: '',
+                google_place_id: ''
+              });
+            }}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 z-10"
+            disabled={disabled}
+          >
+            <X className="h-4 w-4" />
+          </button>
+        )}
         {loading && (
           <Loader2 className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400 animate-spin" />
         )}

@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Loader2, ArrowLeft, ArrowRight, AlertCircle, MapPin, User } from 'lucide-react';
+import { Loader2, ArrowLeft, ArrowRight, AlertCircle, MapPin, User, X } from 'lucide-react';
 import { AddressAutocomplete } from '@/components/ui/address-autocomplete';
 import { PhoneInput } from '@/components/ui/phone-input';
 import { DatePicker } from '@/components/ui/date-picker';
@@ -292,27 +292,53 @@ function CheckoutContent() {
                   <Label htmlFor="first_name">
                     Prénom <span className="text-red-500">*</span>
                   </Label>
-                  <Input
-                    id="first_name"
-                    type="text"
-                    value={formData.first_name}
-                    onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
-                    required
-                    disabled={loading}
-                  />
+                  <div className="relative">
+                    <Input
+                      id="first_name"
+                      type="text"
+                      value={formData.first_name}
+                      onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
+                      required
+                      disabled={loading}
+                      className={formData.first_name ? 'pr-10' : ''}
+                    />
+                    {formData.first_name && (
+                      <button
+                        type="button"
+                        onClick={() => setFormData({ ...formData, first_name: '' })}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                        disabled={loading}
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
                 </div>
                 <div>
                   <Label htmlFor="last_name">
                     Nom <span className="text-red-500">*</span>
                   </Label>
-                  <Input
-                    id="last_name"
-                    type="text"
-                    value={formData.last_name}
-                    onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
-                    required
-                    disabled={loading}
-                  />
+                  <div className="relative">
+                    <Input
+                      id="last_name"
+                      type="text"
+                      value={formData.last_name}
+                      onChange={(e) => setFormData({ ...formData, last_name: e.target.value })}
+                      required
+                      disabled={loading}
+                      className={formData.last_name ? 'pr-10' : ''}
+                    />
+                    {formData.last_name && (
+                      <button
+                        type="button"
+                        onClick={() => setFormData({ ...formData, last_name: '' })}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                        disabled={loading}
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -382,14 +408,27 @@ function CheckoutContent() {
                   <Label htmlFor="address_line2">
                     Complément d'adresse (optionnel)
                   </Label>
-                  <Input
-                    id="address_line2"
-                    type="text"
-                    value={formData.address_line2}
-                    onChange={(e) => setFormData({ ...formData, address_line2: e.target.value })}
-                    disabled={loading}
-                    placeholder="Bâtiment, étage, appartement..."
-                  />
+                  <div className="relative">
+                    <Input
+                      id="address_line2"
+                      type="text"
+                      value={formData.address_line2}
+                      onChange={(e) => setFormData({ ...formData, address_line2: e.target.value })}
+                      disabled={loading}
+                      placeholder="Bâtiment, étage, appartement..."
+                      className={formData.address_line2 ? 'pr-10' : ''}
+                    />
+                    {formData.address_line2 && (
+                      <button
+                        type="button"
+                        onClick={() => setFormData({ ...formData, address_line2: '' })}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                        disabled={loading}
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
 

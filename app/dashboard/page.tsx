@@ -40,6 +40,15 @@ export default async function DashboardPage() {
   
   const groupIds = userGroups?.map(ug => ug.group_id) || []
   
+  // Get website URL and highlight URL for navigation
+  const { data: navigationSettings } = await supabase
+    .from('app_settings')
+    .select('setting_key, setting_value')
+    .in('setting_key', ['website_url', 'highlight_url'])
+  
+  const websiteUrl = navigationSettings?.find(s => s.setting_key === 'website_url')?.setting_value?.replace(/^https?:\/\//, '') || null
+  const highlightUrl = navigationSettings?.find(s => s.setting_key === 'highlight_url')?.setting_value || null
+  
   // Récupérer les derniers membres qui ont rejoint ces groupes
   const { data: recentGroupMembers } = await supabase
     .from('user_groups')
@@ -92,7 +101,7 @@ export default async function DashboardPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Navigation */}
-      <DashboardNav memberRole={member?.role} />
+      <DashboardNav memberRole={member?.role} websiteUrl={websiteUrl} highlightUrl={highlightUrl} />
       
       <div className="pt-8 px-4 md:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
