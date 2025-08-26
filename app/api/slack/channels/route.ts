@@ -34,17 +34,20 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const { groupId, groupName } = await request.json();
+    const { groupId, name, groupName } = await request.json();
+    
+    // Support both 'name' and 'groupName' for backward compatibility
+    const finalGroupName = name || groupName;
 
-    if (!groupId || !groupName) {
+    if (!groupId || !finalGroupName) {
       return NextResponse.json(
-        { error: 'Missing groupId or groupName' },
+        { error: 'Missing groupId or name' },
         { status: 400 }
       );
     }
 
     // Créer le canal Slack
-    const channelName = formatChannelName(groupName);
+    const channelName = formatChannelName(finalGroupName);
     const channelId = await createSlackChannel(channelName, true);
 
     if (!channelId) {
@@ -64,13 +67,13 @@ export async function POST(request: NextRequest) {
     // Envoyer un message de bienvenue
     await sendMessageToChannel(
       channelId,
-      `🎉 Bienvenue dans le canal *${groupName}* !`,
+      `🎉 Bienvenue dans le canal *${finalGroupName}* !`,
       [
         {
           type: 'section',
           text: {
             type: 'mrkdwn',
-            text: `Ce canal est dédié aux membres du groupe *${groupName}*.\n\nN'hésitez pas à échanger et partager vos idées !`,
+            text: `Ce canal est dédié aux membres du groupe *${finalGroupName}*.\n\nN'hésitez pas à échanger et partager vos idées !`,
           },
         },
       ]
@@ -86,7 +89,7 @@ export async function POST(request: NextRequest) {
         slack_channel_id: channelId,
         details: {
           channel_name: channelName,
-          group_name: groupName,
+          group_name: finalGroupName,
         },
       });
 
@@ -184,29 +187,44 @@ async function addGroupMembersToChannel(groupId: string, channelId: string) {
   const supabase = await createClient();
   const { addUserToChannel } = await import('@/lib/slack/helpers');
   
-  // Récupérer tous les membres du groupe connectés à Slack
-  const { data: members } = await supabase
+  console.log(`Adding members to channel ${channelId} for group ${groupId}`);
+  
+  // Récupérer d'abord les user_ids du groupe
+  const { data: userGroups } = await supabase
     .from('user_groups')
-    .select(`
-      user_id,
-      members!inner (
-        slack_user_id
-      )
-    `)
-    .eq('group_id', groupId)
-    .not('members.slack_user_id', 'is', null);
-
-  if (!members) return;
-
+    .select('user_id')
+    .eq('group_id', groupId);
+  
+  if (!userGroups || userGroups.length === 0) {
+    console.log('No members found in group');
+    return;
+  }
+  
+  console.log(`Found ${userGroups.length} members in group`);
+  
+  // Récupérer les infos des membres avec leur slack_user_id
+  const { data: members } = await supabase
+    .from('members')
+    .select('user_id, first_name, last_name, slack_user_id')
+    .in('user_id', userGroups.map(ug => ug.user_id))
+    .not('slack_user_id', 'is', null);
+  
+  if (!members || members.length === 0) {
+    console.log('No members with Slack IDs found');
+    return;
+  }
+  
+  console.log(`Found ${members.length} members with Slack IDs`);
+  
   // Ajouter chaque membre au canal
   for (const member of members) {
-    // Type assertion car Supabase retourne un type générique pour les relations
-    const memberData = member.members as unknown as { slack_user_id: string | null } | null;
-    if (memberData?.slack_user_id) {
+    if (member.slack_user_id) {
       try {
-        await addUserToChannel(channelId, memberData.slack_user_id);
+        console.log(`Adding ${member.first_name} ${member.last_name} (${member.slack_user_id}) to channel`);
+        await addUserToChannel(channelId, member.slack_user_id);
+        console.log(`Successfully added ${member.first_name} ${member.last_name}`);
       } catch (error) {
-        console.error(`Failed to add user ${memberData.slack_user_id} to channel:`, error);
+        console.error(`Failed to add user ${member.slack_user_id} to channel:`, error);
       }
     }
   }

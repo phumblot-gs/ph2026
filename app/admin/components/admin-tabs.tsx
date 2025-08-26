@@ -7,6 +7,7 @@ import DonationsTab from './donations-tab';
 import MembersTab from './members-tab';
 import GroupsTab from './groups-tab';
 import SettingsTab from './settings-tab';
+import { SlackInvitationsTab } from './slack-invitations-tab';
 
 const STORAGE_KEY = 'admin-active-tab';
 
@@ -16,7 +17,8 @@ function AdminTabsContent() {
   
   // Récupérer l'onglet depuis l'URL, le sessionStorage ou utiliser la valeur par défaut
   // État initial basé uniquement sur l'URL pour éviter les problèmes d'hydratation
-  const initialTab = tabFromUrl && ['donations', 'members', 'groups', 'settings'].includes(tabFromUrl)
+  const validTabs = ['donations', 'members', 'groups', 'slack', 'settings'];
+  const initialTab = tabFromUrl && validTabs.includes(tabFromUrl)
     ? tabFromUrl
     : 'donations';
   
@@ -26,7 +28,7 @@ function AdminTabsContent() {
   useEffect(() => {
     if (!tabFromUrl) {
       const savedTab = sessionStorage.getItem(STORAGE_KEY);
-      if (savedTab && ['donations', 'members', 'groups', 'settings'].includes(savedTab)) {
+      if (savedTab && validTabs.includes(savedTab)) {
         setActiveTab(savedTab);
       }
     }
@@ -34,7 +36,7 @@ function AdminTabsContent() {
   
   useEffect(() => {
     // Si un onglet est spécifié dans l'URL, l'utiliser
-    if (tabFromUrl && ['donations', 'members', 'groups', 'settings'].includes(tabFromUrl)) {
+    if (tabFromUrl && validTabs.includes(tabFromUrl)) {
       setActiveTab(tabFromUrl);
       sessionStorage.setItem(STORAGE_KEY, tabFromUrl);
     }
@@ -52,10 +54,11 @@ function AdminTabsContent() {
   
   return (
     <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
-      <TabsList className="grid w-full grid-cols-4 lg:w-auto">
+      <TabsList className="grid w-full grid-cols-5 lg:w-auto">
         <TabsTrigger value="donations">Dons</TabsTrigger>
         <TabsTrigger value="members">Membres</TabsTrigger>
         <TabsTrigger value="groups">Groupes</TabsTrigger>
+        <TabsTrigger value="slack">Slack</TabsTrigger>
         <TabsTrigger value="settings">Paramètres</TabsTrigger>
       </TabsList>
       
@@ -71,6 +74,10 @@ function AdminTabsContent() {
         <GroupsTab />
       </TabsContent>
       
+      <TabsContent value="slack" className="space-y-6">
+        <SlackInvitationsTab />
+      </TabsContent>
+      
       <TabsContent value="settings" className="space-y-6">
         <SettingsTab />
       </TabsContent>
@@ -82,7 +89,7 @@ export default function AdminTabs() {
   return (
     <Suspense fallback={
       <Tabs defaultValue="donations" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-4 lg:w-auto">
+        <TabsList className="grid w-full grid-cols-5 lg:w-auto">
           <TabsTrigger value="donations">Dons</TabsTrigger>
           <TabsTrigger value="members">Membres</TabsTrigger>
           <TabsTrigger value="groups">Groupes</TabsTrigger>

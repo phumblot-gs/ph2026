@@ -90,8 +90,10 @@ export default function GroupEditPage({
   const [addingMember, setAddingMember] = useState(false);
   const [removingMemberId, setRemovingMemberId] = useState<string | null>(null);
   const [creatingChannel, setCreatingChannel] = useState(false);
+  const [customChannelName, setCustomChannelName] = useState('');
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
   const [slackFeatures, setSlackFeatures] = useState<any>(null);
+  const [syncingSlack, setSyncingSlack] = useState(false);
   
   // Nouveaux états pour filtres et sélection
   const [searchTerm, setSearchTerm] = useState('');
@@ -217,10 +219,9 @@ export default function GroupEditPage({
       setSelectedMemberId('');
       setMessage({ type: 'success', text: 'Membre ajouté avec succès' });
       
-      // Si le membre est connecté à Slack et qu'il y a un canal, l'ajouter au canal
-      const member = allMembers.find(m => m.user_id === selectedMemberId);
-      if (member?.slack_user_id && group.slack_channel_id) {
-        await addMemberToSlackChannel(member.slack_user_id);
+      // Si le groupe a un canal Slack, ajouter le membre au canal
+      if (group.slack_channel_id) {
+        await addMemberToSlackChannel(selectedMemberId);
       }
     }
     
@@ -236,9 +237,8 @@ export default function GroupEditPage({
     const supabase = createClient();
     
     // Retirer de Slack d'abord si nécessaire
-    const member = groupMembers.find(m => m.user_id === userId);
-    if (member?.slack_user_id && group.slack_channel_id) {
-      await removeMemberFromSlackChannel(member.slack_user_id);
+    if (group.slack_channel_id) {
+      await removeMemberFromSlackChannel(userId);
     }
     
     const { error } = await supabase
@@ -355,6 +355,13 @@ export default function GroupEditPage({
       setIsProcessing(true);
       const supabase = createClient();
       
+      // Retirer de Slack d'abord si nécessaire
+      if (group.slack_channel_id) {
+        for (const userId of selectedMembers) {
+          await removeMemberFromSlackChannel(userId);
+        }
+      }
+      
       // Retirer les membres sélectionnés du groupe
       const { error } = await supabase
         .from('user_groups')
@@ -385,7 +392,7 @@ export default function GroupEditPage({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           groupId: groupId,
-          name: group.name
+          name: customChannelName || group.name
         })
       });
       
@@ -408,6 +415,38 @@ export default function GroupEditPage({
     setCreatingChannel(false);
   }
 
+  async function handleSyncSlackChannel() {
+    if (!group.slack_channel_id) return;
+    
+    setSyncingSlack(true);
+    
+    try {
+      const response = await fetch('/api/slack/channels/members', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          channelId: group.slack_channel_id,
+          groupId: groupId
+        })
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setMessage({ 
+          type: 'success', 
+          text: `Synchronisation terminée : ${data.added} membre(s) ajouté(s) au canal` 
+        });
+      } else {
+        setMessage({ type: 'error', text: 'Erreur lors de la synchronisation' });
+      }
+    } catch (error) {
+      console.error('Error syncing Slack channel:', error);
+      setMessage({ type: 'error', text: 'Erreur lors de la synchronisation' });
+    }
+    
+    setSyncingSlack(false);
+  }
+  
   async function syncSlackMembers() {
     const slackMembers = groupMembers.filter(m => m.slack_user_id);
     
@@ -432,37 +471,55 @@ export default function GroupEditPage({
     }
   }
 
-  async function addMemberToSlackChannel(slackUserId: string) {
+  async function addMemberToSlackChannel(userId: string) {
     if (!group.slack_channel_id) return;
     
     try {
-      await fetch('/api/slack/channels/members', {
+      const response = await fetch('/api/slack/channels/members', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           channelId: group.slack_channel_id,
-          userIds: [slackUserId],
-          action: 'add'
+          userId: userId,
+          groupId: groupId
         })
       });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        console.error('Error adding member to Slack channel:', error);
+        // Si l'utilisateur n'est pas connecté à Slack, c'est normal
+        if (error.error !== 'User not connected to Slack') {
+          setMessage({ type: 'error', text: 'Erreur lors de l\'ajout au canal Slack' });
+        }
+      }
     } catch (error) {
       console.error('Error adding member to Slack channel:', error);
     }
   }
 
-  async function removeMemberFromSlackChannel(slackUserId: string) {
+  async function removeMemberFromSlackChannel(userId: string) {
     if (!group.slack_channel_id) return;
     
     try {
-      await fetch('/api/slack/channels/members', {
-        method: 'POST',
+      const response = await fetch('/api/slack/channels/members', {
+        method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           channelId: group.slack_channel_id,
-          userIds: [slackUserId],
-          action: 'remove'
+          userId: userId,
+          groupId: groupId
         })
       });
+      
+      if (!response.ok) {
+        const error = await response.json();
+        console.error('Error removing member from Slack channel:', error);
+        // Si l'utilisateur n'est pas connecté à Slack, c'est normal
+        if (error.error !== 'User not connected to Slack') {
+          setMessage({ type: 'error', text: 'Erreur lors du retrait du canal Slack' });
+        }
+      }
     } catch (error) {
       console.error('Error removing member from Slack channel:', error);
     }
@@ -602,42 +659,90 @@ export default function GroupEditPage({
           </CardHeader>
           <CardContent>
             {group.slack_channel_id ? (
-              <div className="flex items-center justify-between p-4 bg-green-50 rounded-lg">
-                <div className="flex items-center gap-3">
-                  <Hash className="h-5 w-5 text-green-600" />
-                  <div>
-                    <p className="font-medium text-green-900">Canal actif</p>
-                    <p className="text-sm text-green-700">ID: {group.slack_channel_id}</p>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between p-4 bg-green-50 rounded-lg">
+                  <div className="flex items-center gap-3">
+                    <Hash className="h-5 w-5 text-green-600" />
+                    <div>
+                      <p className="font-medium text-green-900">Canal actif</p>
+                      <p className="text-sm text-green-700">ID: {group.slack_channel_id}</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleSyncSlackChannel}
+                      disabled={syncingSlack}
+                      title="Synchroniser tous les membres avec le canal Slack"
+                    >
+                      {syncingSlack ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <RefreshCw className="h-4 w-4" />
+                      )}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => window.open(`slack://channel?team=${process.env.NEXT_PUBLIC_SLACK_TEAM_ID}&id=${group.slack_channel_id}`, '_blank')}
+                    >
+                      Ouvrir dans Slack
+                    </Button>
                   </div>
                 </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => window.open(`slack://channel?team=${process.env.NEXT_PUBLIC_SLACK_TEAM_ID}&id=${group.slack_channel_id}`, '_blank')}
-                >
-                  Ouvrir dans Slack
-                </Button>
+                <p className="text-sm text-gray-500">
+                  Les membres connectés à Slack sont automatiquement ajoutés/retirés du canal.
+                  Utilisez le bouton de synchronisation si nécessaire.
+                </p>
               </div>
             ) : (
-              <div className="text-center py-6">
-                <MessageSquare className="h-12 w-12 text-gray-300 mx-auto mb-4" />
-                <p className="text-gray-600 mb-4">
-                  Aucun canal Slack n'est associé à ce groupe
-                </p>
-                {slackFeatures?.canManageChannels ? (
-                  <Button onClick={handleCreateSlackChannel} disabled={creatingChannel}>
-                    {creatingChannel ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Création...
-                      </>
-                    ) : (
-                      <>
-                        <MessageSquare className="mr-2 h-4 w-4" />
-                        Créer le canal
-                      </>
-                    )}
-                  </Button>
+              <div className="space-y-4">
+                <div className="text-center py-6">
+                  <MessageSquare className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+                  <p className="text-gray-600">
+                    Aucun canal Slack n'est associé à ce groupe
+                  </p>
+                </div>
+                {group.name.toLowerCase() === 'public' ? (
+                  <Alert className="bg-blue-50 border-blue-200">
+                    <MessageSquare className="h-4 w-4 text-blue-600" />
+                    <AlertDescription className="text-blue-800">
+                      Le groupe public utilise le canal #tous-nous-parisiens imposé par Slack.
+                      Pour l'associer, utilisez l'ID du canal dans la base de données.
+                    </AlertDescription>
+                  </Alert>
+                ) : slackFeatures?.canManageChannels ? (
+                  <div className="space-y-4">
+                    <div>
+                      <Label htmlFor="channel-name">Nom du canal Slack</Label>
+                      <Input
+                        id="channel-name"
+                        type="text"
+                        placeholder={group.name.toLowerCase().replace(/\s+/g, '-')}
+                        value={customChannelName}
+                        onChange={(e) => setCustomChannelName(e.target.value)}
+                        disabled={creatingChannel}
+                        className="mt-1"
+                      />
+                      <p className="text-sm text-gray-500 mt-1">
+                        Laissez vide pour utiliser le nom du groupe
+                      </p>
+                    </div>
+                    <Button onClick={handleCreateSlackChannel} disabled={creatingChannel} className="w-full">
+                      {creatingChannel ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Création...
+                        </>
+                      ) : (
+                        <>
+                          <MessageSquare className="mr-2 h-4 w-4" />
+                          Créer le canal
+                        </>
+                      )}
+                    </Button>
+                  </div>
                 ) : (
                   <Alert>
                     <AlertCircle className="h-4 w-4" />

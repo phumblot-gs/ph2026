@@ -36,9 +36,9 @@ export async function checkSlackFeatures(): Promise<SlackFeatures> {
     }
 
     // Les scopes sont retournés dans une propriété différente selon le type de token
-    // Pour les tokens OAuth v2, ils sont dans la réponse auth.test
+    // Pour les tokens OAuth v2, ils sont dans response_metadata.scopes
     const authTestWithScopes = authTest as any;
-    const scopes: string[] = authTestWithScopes.scopes || [];
+    const scopes: string[] = authTestWithScopes.response_metadata?.scopes || authTestWithScopes.scopes || [];
     
     return {
       // Les scopes admin indiquent un workspace payant
