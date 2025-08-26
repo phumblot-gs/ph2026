@@ -34,6 +34,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { MemberSearchSelect } from '@/components/ui/member-search-select';
 import {
   Alert,
   AlertDescription,
@@ -980,27 +981,33 @@ export default function GroupEditPage({
         </Card>
         
         {/* Add Member Dialog */}
-        <Dialog open={showAddMemberDialog} onOpenChange={setShowAddMemberDialog}>
+        <Dialog open={showAddMemberDialog} onOpenChange={(open) => {
+          setShowAddMemberDialog(open);
+          if (!open) {
+            setSelectedMemberId(''); // Reset selection when closing
+          }
+        }}>
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Ajouter un membre au groupe</DialogTitle>
               <DialogDescription>
-                Sélectionnez un membre à ajouter à ce groupe
+                Recherchez et sélectionnez un membre à ajouter à ce groupe
               </DialogDescription>
             </DialogHeader>
             <div className="py-4">
-              <Select value={selectedMemberId} onValueChange={setSelectedMemberId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Sélectionner un membre..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {availableMembers.map((member) => (
-                    <SelectItem key={member.user_id} value={member.user_id}>
-                      {member.first_name} {member.last_name} ({member.email})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <MemberSearchSelect
+                members={availableMembers}
+                onSelect={setSelectedMemberId}
+                value={selectedMemberId}
+                placeholder="Rechercher par nom ou email..."
+              />
+              {selectedMemberId && (
+                <div className="mt-3 p-3 bg-blue-50 rounded-lg">
+                  <p className="text-sm text-blue-800">
+                    Membre sélectionné: {availableMembers.find(m => m.user_id === selectedMemberId)?.first_name} {availableMembers.find(m => m.user_id === selectedMemberId)?.last_name}
+                  </p>
+                </div>
+              )}
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setShowAddMemberDialog(false)} disabled={addingMember}>
