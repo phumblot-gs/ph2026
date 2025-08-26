@@ -244,6 +244,17 @@ export async function getChannelMessages(
           channel: channelId,
         });
         
+        // Si le canal est public et que le bot n'est pas membre, essayer de le joindre
+        if (infoResult.channel && !infoResult.channel.is_private && !infoResult.channel.is_member) {
+          console.log(`Attempting to join public channel ${channelId}`);
+          try {
+            await slackBotClient.conversations.join({ channel: channelId });
+            console.log(`Successfully joined channel ${channelId}`);
+          } catch (joinError) {
+            console.log(`Failed to join channel ${channelId}:`, joinError);
+          }
+        }
+        
         // Si le canal est privé et que le bot n'est pas membre, on ne peut pas y accéder
         if (infoResult.channel && infoResult.channel.is_private && !infoResult.channel.is_member) {
           console.log(`Bot is not member of private channel ${channelId}`);
