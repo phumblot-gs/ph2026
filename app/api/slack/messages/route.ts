@@ -77,22 +77,48 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Récupérer les IDs Slack uniques des messages
+    // Récupérer les IDs Slack uniques des messages ET des mentions dans le texte
     const slackUserIds = [...new Set(messages.map(m => m.user).filter(Boolean))];
+    
+    // Extraire aussi les IDs des mentions <@U...> dans les textes
+    const mentionRegex = /<@(U[A-Z0-9]+)>/g;
+    messages.forEach(msg => {
+      const matches = msg.text?.matchAll(mentionRegex);
+      if (matches) {
+        for (const match of matches) {
+          slackUserIds.push(match[1]);
+        }
+      }
+    });
+    
+    // Dédupliquer les IDs
+    const uniqueSlackUserIds = [...new Set(slackUserIds)];
     
     // Récupérer les membres correspondants dans notre base
     const { data: members } = await supabase
       .from('members')
       .select('slack_user_id, first_name, last_name, avatar_url')
-      .in('slack_user_id', slackUserIds);
+      .in('slack_user_id', uniqueSlackUserIds);
     
     // Créer un map pour associer rapidement les IDs Slack aux membres
     const memberMap = new Map(members?.map(m => [m.slack_user_id, m]) || []);
+    
+    // Fonction pour remplacer les mentions dans le texte
+    const replaceMentions = (text: string): string => {
+      return text.replace(mentionRegex, (match, userId) => {
+        const member = memberMap.get(userId);
+        if (member) {
+          return `${member.first_name} ${member.last_name}`;
+        }
+        return match; // Garder l'ID Slack si membre non trouvé
+      });
+    };
     
     // Enrichir les messages avec les infos membres
     const enrichedMessages = messages.map(msg => ({
       ...msg,
       member: memberMap.get(msg.user) || null,
+      text: replaceMentions(msg.text || ''), // Remplacer les mentions dans le texte
       // Formater correctement le timestamp
       timestamp: msg.ts, // Garder le timestamp Slack original
     }));
