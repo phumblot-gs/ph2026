@@ -41,17 +41,20 @@ export async function POST(request: NextRequest) {
     // Récupérer le slack_user_id du membre
     const { data: targetMember } = await supabase
       .from('members')
-      .select('slack_user_id')
+      .select('slack_user_id, email, first_name, last_name')
       .eq('user_id', userId)
       .single();
 
     if (!targetMember?.slack_user_id) {
+      console.log(`User ${userId} not connected to Slack`);
       return NextResponse.json(
         { error: 'User not connected to Slack' },
         { status: 400 }
       );
     }
 
+    console.log(`Adding user ${targetMember.email} (${targetMember.slack_user_id}) to channel ${channelId}`);
+    
     // Ajouter l'utilisateur au canal
     const success = await addUserToChannel(channelId, targetMember.slack_user_id);
 
