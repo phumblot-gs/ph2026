@@ -32,7 +32,7 @@ import {
   Users
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 
 export default function MembersTab() {
   const router = useRouter();
@@ -211,9 +211,38 @@ export default function MembersTab() {
     }));
 
     // Create workbook and worksheet
-    const ws = XLSX.utils.json_to_sheet(exportData);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Membres');
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Membres');
+    
+    // Define columns
+    worksheet.columns = [
+      { header: 'Prénom', key: 'first_name', width: 15 },
+      { header: 'Nom', key: 'last_name', width: 15 },
+      { header: 'Email', key: 'email', width: 30 },
+      { header: 'Téléphone', key: 'phone', width: 15 },
+      { header: 'Date de naissance', key: 'birth_date', width: 20 },
+      { header: 'Groupes', key: 'groups', width: 30 },
+      { header: 'Slack', key: 'slack', width: 12 },
+      { header: 'Rôle', key: 'role', width: 12 },
+      { header: 'Statut', key: 'status', width: 12 },
+      { header: 'Date d\'inscription', key: 'created_at', width: 20 }
+    ];
+    
+    // Add data
+    exportData.forEach(row => {
+      worksheet.addRow({
+        first_name: row['Prénom'],
+        last_name: row['Nom'],
+        email: row['Email'],
+        phone: row['Téléphone'],
+        birth_date: row['Date de naissance'],
+        groups: row['Groupes'],
+        slack: row['Slack'],
+        role: row['Rôle'],
+        status: row['Statut'],
+        created_at: row['Date d\'inscription']
+      });
+    });
 
     // Generate filename with current date
     const today = new Date();
@@ -221,7 +250,17 @@ export default function MembersTab() {
     const filename = `membres_${dateStr}.xlsx`;
 
     // Save file
-    XLSX.writeFile(wb, filename);
+    
+    // Generate buffer and download
+    workbook.xlsx.writeBuffer().then((buffer) => {
+      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      link.click();
+      window.URL.revokeObjectURL(url);
+    });
   };
   
   return (

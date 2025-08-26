@@ -212,27 +212,49 @@ export function SlackInvitationsTab() {
                           <TableRow key={invitation.id}>
                             <TableCell>
                               <div className="flex items-center gap-3">
-                                <Avatar className="h-8 w-8">
-                                  {invitation.avatar_url ? (
-                                    <AvatarImage src={invitation.avatar_url} />
-                                  ) : (
-                                    <AvatarFallback>
-                                      {invitation.first_name?.[0]}{invitation.last_name?.[0]}
-                                    </AvatarFallback>
-                                  )}
-                                </Avatar>
-                                <div>
-                                  <p className="font-medium text-sm">
-                                    {invitation.first_name} {invitation.last_name}
-                                  </p>
-                                </div>
+                                {invitation.email === 'bot@ph2026.fr' ? (
+                                  <>
+                                    <div className="h-8 w-8 rounded-full bg-purple-100 flex items-center justify-center">
+                                      <MessageSquare className="h-4 w-4 text-purple-600" />
+                                    </div>
+                                    <div>
+                                      <p className="font-medium text-sm text-purple-700">
+                                        Inviter le bot au canal
+                                      </p>
+                                      <p className="text-xs text-gray-500">
+                                        {invitation.last_name}
+                                      </p>
+                                    </div>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Avatar className="h-8 w-8">
+                                      {invitation.avatar_url ? (
+                                        <AvatarImage src={invitation.avatar_url} />
+                                      ) : (
+                                        <AvatarFallback>
+                                          {invitation.first_name?.[0]}{invitation.last_name?.[0]}
+                                        </AvatarFallback>
+                                      )}
+                                    </Avatar>
+                                    <div>
+                                      <p className="font-medium text-sm">
+                                        {invitation.first_name} {invitation.last_name}
+                                      </p>
+                                    </div>
+                                  </>
+                                )}
                               </div>
                             </TableCell>
                             <TableCell>
-                              <div className="flex items-center gap-2">
-                                <Mail className="h-4 w-4 text-gray-400" />
-                                <span className="text-sm">{invitation.email}</span>
-                              </div>
+                              {invitation.email === 'bot@ph2026.fr' ? (
+                                <span className="text-sm text-purple-600">Action bot requise</span>
+                              ) : (
+                                <div className="flex items-center gap-2">
+                                  <Mail className="h-4 w-4 text-gray-400" />
+                                  <span className="text-sm">{invitation.email}</span>
+                                </div>
+                              )}
                             </TableCell>
                             <TableCell>
                               <span className="text-sm text-gray-600">
