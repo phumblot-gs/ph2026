@@ -236,6 +236,25 @@ export async function getChannelMessages(
   }
 
   try {
+    // Si on utilise le bot, essayer de joindre le canal d'abord
+    if (!userToken && slackBotClient) {
+      try {
+        // Vérifier si le bot est dans le canal
+        const infoResult = await slackBotClient.conversations.info({
+          channel: channelId,
+        });
+        
+        // Si le canal est privé et que le bot n'est pas membre, on ne peut pas y accéder
+        if (infoResult.channel && infoResult.channel.is_private && !infoResult.channel.is_member) {
+          console.log(`Bot is not member of private channel ${channelId}`);
+          return [];
+        }
+      } catch (e) {
+        console.log(`Cannot access channel ${channelId}:`, e);
+        // Continuer quand même pour essayer
+      }
+    }
+    
     const result = await client.conversations.history({
       channel: channelId,
       limit,

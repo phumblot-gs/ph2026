@@ -67,8 +67,8 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    // Récupérer les messages du canal avec infos utilisateurs enrichies
-    const messages = await getChannelMessages(channelId, limit, member?.slack_access_token);
+    // Récupérer les messages du canal (utiliser le token utilisateur si disponible pour avoir accès aux canaux privés)
+    const messages = await getChannelMessages(channelId, limit, member?.slack_access_token || undefined);
 
     if (!messages) {
       return NextResponse.json(
