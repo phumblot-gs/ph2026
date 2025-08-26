@@ -10,23 +10,53 @@ export async function createSlackChannel(name: string, isPrivate: boolean = true
     return null;
   }
 
+  const cleanName = name.toLowerCase().replace(/[^a-z0-9-]/g, '-');
+  
   try {
+    // D'abord, vérifier si le canal existe déjà (y compris les canaux archivés)
+    console.log(`Checking if channel '${cleanName}' already exists...`);
+    const channels = await listSlackChannels();
+    const existing = channels.find(c => c.name === cleanName);
+    
+    if (existing) {
+      console.log(`Channel '${cleanName}' already exists with ID: ${existing.id}`);
+      
+      // Si le canal est archivé, le désarchiver
+      if (existing.is_archived) {
+        console.log(`Channel is archived, unarchiving...`);
+        const unarchived = await unarchiveSlackChannel(existing.id!);
+        if (!unarchived) {
+          console.error('Failed to unarchive existing channel');
+          return null;
+        }
+      }
+      
+      return existing.id!;
+    }
+    
+    // Créer le nouveau canal
+    console.log(`Creating new channel '${cleanName}'...`);
     const result = await slackBotClient.conversations.create({
-      name: name.toLowerCase().replace(/[^a-z0-9-]/g, '-'), // Slack exige des noms en minuscules
+      name: cleanName,
       is_private: isPrivate,
     });
 
     if (result.ok && result.channel) {
+      console.log(`Channel created successfully with ID: ${result.channel.id}`);
       return result.channel.id!;
     }
     return null;
   } catch (error: any) {
     console.error('Error creating Slack channel:', error);
     if (error.data?.error === 'name_taken') {
-      // Le canal existe déjà, essayer de le récupérer
+      // Cela ne devrait pas arriver car on vérifie avant, mais au cas où...
+      console.log('Channel name already taken, trying to find it...');
       const channels = await listSlackChannels();
-      const existing = channels.find(c => c.name === name.toLowerCase().replace(/[^a-z0-9-]/g, '-'));
-      return existing?.id || null;
+      const existing = channels.find(c => c.name === cleanName);
+      if (existing) {
+        console.log(`Found existing channel with ID: ${existing.id}`);
+        return existing.id!;
+      }
     }
     return null;
   }
@@ -167,7 +197,7 @@ export async function removeUserFromChannel(channelId: string, userId: string): 
 /**
  * Lister tous les canaux
  */
-export async function listSlackChannels(): Promise<SlackChannel[]> {
+export async function listSlackChannels(includeArchived: boolean = true): Promise<SlackChannel[]> {
   if (!slackBotClient) {
     console.error('Slack not configured');
     return [];
@@ -176,6 +206,7 @@ export async function listSlackChannels(): Promise<SlackChannel[]> {
   try {
     const result = await slackBotClient.conversations.list({
       types: 'public_channel,private_channel',
+      exclude_archived: !includeArchived, // Inclure les canaux archivés si demandé
       limit: 1000,
     });
 
