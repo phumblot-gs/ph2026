@@ -45,6 +45,7 @@ export interface SlackChannel {
   id: string;
   name: string;
   is_private: boolean;
+  is_archived?: boolean;
   is_member?: boolean;
   num_members?: number;
   topic?: {
