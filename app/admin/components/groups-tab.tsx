@@ -40,7 +40,7 @@ import {
 } from '@/components/ui/select';
 import { Search, Download, Plus, Edit, MoreHorizontal, Users, MessageSquare, Loader2, RefreshCw } from 'lucide-react';
 import Link from 'next/link';
-import { utils, writeFile } from 'xlsx';
+import ExcelJS from 'exceljs';
 
 interface Group {
   id: string;
@@ -134,12 +134,35 @@ export default function GroupsTab() {
       'Date de création': new Date(group.created_at).toLocaleDateString('fr-FR')
     }));
 
-    const ws = utils.json_to_sheet(exportData);
-    const wb = utils.book_new();
-    utils.book_append_sheet(wb, ws, 'Groupes');
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Groupes');
+    
+    // Define columns
+    worksheet.columns = [
+      { header: 'Nom', key: 'Nom', width: 25 },
+      { header: 'Description', key: 'Description', width: 40 },
+      { header: 'Membres', key: 'Membres', width: 15 },
+      { header: 'Canal Slack', key: 'Canal Slack', width: 20 },
+      { header: 'Date de création', key: 'Date de création', width: 20 }
+    ];
+    
+    // Add data
+    exportData.forEach(row => {
+      worksheet.addRow(row);
+    });
     
     const fileName = `groupes_${new Date().toISOString().split('T')[0]}.xlsx`;
-    writeFile(wb, fileName);
+    
+    // Generate buffer and download
+    workbook.xlsx.writeBuffer().then((buffer) => {
+      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = fileName;
+      link.click();
+      window.URL.revokeObjectURL(url);
+    });
   }
 
   const filteredGroups = useMemo(() => {
