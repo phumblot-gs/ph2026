@@ -291,7 +291,12 @@ export async function getChannelMessages(
       });
     }
     return [];
-  } catch (error) {
+  } catch (error: any) {
+    // Si le bot n'est pas dans le canal ou n'a pas les permissions, retourner un tableau vide
+    if (error.data?.error === 'not_in_channel' || error.data?.error === 'missing_scope') {
+      console.log(`Cannot fetch messages from channel ${channelId}: ${error.data.error}`);
+      return [];
+    }
     console.error('Error getting channel messages:', error);
     return [];
   }
