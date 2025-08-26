@@ -1,18 +1,11 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-
 export default function EnvironmentBanner() {
-  const [env, setEnv] = useState<string>('')
-
-  useEffect(() => {
-    // Récupérer l'environnement depuis la variable d'environnement
-    const environment = process.env.NEXT_PUBLIC_ENV || 'development'
-    setEnv(environment)
-  }, [])
+  // Récupérer l'environnement directement (disponible au build time)
+  const env = process.env.NEXT_PUBLIC_ENV || 'development'
 
   // Ne pas afficher le bandeau en production
-  if (!env || env === 'production') {
+  if (env === 'production') {
     return null
   }
 
