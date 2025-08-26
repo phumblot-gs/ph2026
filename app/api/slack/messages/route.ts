@@ -67,8 +67,8 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    // Récupérer les messages du canal
-    const messages = await getChannelMessages(channelId, limit);
+    // Récupérer les messages du canal avec infos utilisateurs enrichies
+    const messages = await getChannelMessages(channelId, limit, member?.slack_access_token);
 
     if (!messages) {
       return NextResponse.json(
@@ -103,14 +103,37 @@ export async function GET(request: NextRequest) {
     // Créer un map pour associer rapidement les IDs Slack aux membres
     const memberMap = new Map(members?.map(m => [m.slack_user_id, m]) || []);
     
+    // Créer un map avec les infos Slack des utilisateurs des messages
+    const slackUserInfoMap = new Map();
+    for (const msg of messages) {
+      if (msg.user_profile) {
+        slackUserInfoMap.set(msg.user, msg.user_profile);
+      }
+    }
+    
     // Fonction pour remplacer les mentions dans le texte
     const replaceMentions = (text: string): string => {
       return text.replace(mentionRegex, (match, userId) => {
+        // D'abord chercher dans notre base
         const member = memberMap.get(userId);
         if (member) {
           return `${member.first_name} ${member.last_name}`;
         }
-        return match; // Garder l'ID Slack si membre non trouvé
+        
+        // Sinon chercher dans les infos Slack des messages
+        const slackInfo = slackUserInfoMap.get(userId);
+        if (slackInfo) {
+          return slackInfo.real_name || slackInfo.name || match;
+        }
+        
+        // Si toujours pas trouvé, essayer de chercher dans les messages pour cet ID
+        const messageFromUser = messages.find(m => m.user === userId);
+        if (messageFromUser?.user_profile) {
+          return messageFromUser.user_profile.real_name || messageFromUser.user_profile.name || match;
+        }
+        
+        // En dernier recours, garder juste le prénom si possible ou l'ID
+        return match;
       });
     };
     
