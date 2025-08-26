@@ -236,6 +236,36 @@ export async function getChannelMessages(
   }
 
   try {
+    // Si on utilise le bot, essayer de joindre le canal d'abord
+    if (!userToken && slackBotClient) {
+      try {
+        // Vérifier si le bot est dans le canal
+        const infoResult = await slackBotClient.conversations.info({
+          channel: channelId,
+        });
+        
+        // Si le canal est public et que le bot n'est pas membre, essayer de le joindre
+        if (infoResult.channel && !infoResult.channel.is_private && !infoResult.channel.is_member) {
+          console.log(`Attempting to join public channel ${channelId}`);
+          try {
+            await slackBotClient.conversations.join({ channel: channelId });
+            console.log(`Successfully joined channel ${channelId}`);
+          } catch (joinError) {
+            console.log(`Failed to join channel ${channelId}:`, joinError);
+          }
+        }
+        
+        // Si le canal est privé et que le bot n'est pas membre, on ne peut pas y accéder
+        if (infoResult.channel && infoResult.channel.is_private && !infoResult.channel.is_member) {
+          console.log(`Bot is not member of private channel ${channelId}`);
+          return [];
+        }
+      } catch (e) {
+        console.log(`Cannot access channel ${channelId}:`, e);
+        // Continuer quand même pour essayer
+      }
+    }
+    
     const result = await client.conversations.history({
       channel: channelId,
       limit,
@@ -272,7 +302,12 @@ export async function getChannelMessages(
       });
     }
     return [];
-  } catch (error) {
+  } catch (error: any) {
+    // Si le bot n'est pas dans le canal ou n'a pas les permissions, retourner un tableau vide
+    if (error.data?.error === 'not_in_channel' || error.data?.error === 'missing_scope') {
+      console.log(`Cannot fetch messages from channel ${channelId}: ${error.data.error}`);
+      return [];
+    }
     console.error('Error getting channel messages:', error);
     return [];
   }
