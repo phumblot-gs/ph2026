@@ -77,7 +77,27 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    return NextResponse.json({ messages });
+    // Récupérer les IDs Slack uniques des messages
+    const slackUserIds = [...new Set(messages.map(m => m.user).filter(Boolean))];
+    
+    // Récupérer les membres correspondants dans notre base
+    const { data: members } = await supabase
+      .from('members')
+      .select('slack_user_id, first_name, last_name, avatar_url')
+      .in('slack_user_id', slackUserIds);
+    
+    // Créer un map pour associer rapidement les IDs Slack aux membres
+    const memberMap = new Map(members?.map(m => [m.slack_user_id, m]) || []);
+    
+    // Enrichir les messages avec les infos membres
+    const enrichedMessages = messages.map(msg => ({
+      ...msg,
+      member: memberMap.get(msg.user) || null,
+      // Formater correctement le timestamp
+      timestamp: msg.ts, // Garder le timestamp Slack original
+    }));
+
+    return NextResponse.json({ messages: enrichedMessages });
   } catch (error) {
     console.error('Error fetching Slack messages:', error);
     return NextResponse.json(

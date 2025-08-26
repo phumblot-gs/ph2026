@@ -12,7 +12,19 @@ interface SlackMessage {
   user: string;
   text: string;
   timestamp: string;
+  ts?: string; // Timestamp Slack original
   channel: string;
+  member?: {
+    slack_user_id: string;
+    first_name: string;
+    last_name: string;
+    avatar_url: string | null;
+  } | null;
+  user_profile?: {
+    name: string;
+    real_name: string;
+    image_48: string;
+  };
 }
 
 interface GroupSlackMessagesProps {
@@ -61,8 +73,15 @@ export function GroupSlackMessages({ groups, isSlackConnected }: GroupSlackMessa
     }
   }
 
-  function formatTimestamp(timestamp: string) {
+  function formatTimestamp(timestamp: string | undefined) {
+    if (!timestamp) return '';
+    
+    // Le timestamp Slack est en format "1234567890.123456"
     const date = new Date(parseFloat(timestamp) * 1000);
+    
+    // Vérifier si la date est valide
+    if (isNaN(date.getTime())) return '';
+    
     const now = new Date();
     const diffMs = now.getTime() - date.getTime();
     const diffMins = Math.floor(diffMs / 60000);
@@ -197,26 +216,42 @@ export function GroupSlackMessages({ groups, isSlackConnected }: GroupSlackMessa
               </Alert>
             ) : messages[group.id] && messages[group.id].length > 0 ? (
               <div className="space-y-3">
-                {messages[group.id].map((message, index) => (
-                  <div key={index} className="flex gap-3 pb-3 border-b last:border-0">
-                    <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0">
-                      <span className="text-xs font-semibold text-gray-600">
-                        {message.user?.[0]?.toUpperCase() || '?'}
-                      </span>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="font-medium text-sm">{message.user}</span>
-                        <span className="text-xs text-gray-500">
-                          {formatTimestamp(message.timestamp)}
-                        </span>
+                {messages[group.id].map((message, index) => {
+                  // Utiliser les infos du membre si disponibles, sinon fallback sur user_profile Slack
+                  const displayName = message.member 
+                    ? `${message.member.first_name} ${message.member.last_name}`
+                    : message.user_profile?.real_name || message.user_profile?.name || message.user;
+                  
+                  const avatarUrl = message.member?.avatar_url || message.user_profile?.image_48;
+                  const initials = message.member
+                    ? `${message.member.first_name?.[0] || ''}${message.member.last_name?.[0] || ''}`
+                    : displayName?.[0] || '?';
+                  
+                  return (
+                    <div key={index} className="flex gap-3 pb-3 border-b last:border-0">
+                      <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0 overflow-hidden">
+                        {avatarUrl ? (
+                          <img src={avatarUrl} alt={displayName} className="w-full h-full object-cover" />
+                        ) : (
+                          <span className="text-xs font-semibold text-gray-600">
+                            {initials.toUpperCase()}
+                          </span>
+                        )}
                       </div>
-                      <p className="text-sm text-gray-700 break-words">
-                        {truncateText(message.text)}
-                      </p>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="font-medium text-sm">{displayName}</span>
+                          <span className="text-xs text-gray-500">
+                            {formatTimestamp(message.ts || message.timestamp)}
+                          </span>
+                        </div>
+                        <p className="text-sm text-gray-700 break-words">
+                          {truncateText(message.text)}
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             ) : (
               <p className="text-gray-500 text-sm text-center py-4">
