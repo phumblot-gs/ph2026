@@ -39,7 +39,7 @@ export default async function AdminPage() {
       {/* Navigation */}
       <AdminNav websiteUrl={websiteUrl} highlightUrl={highlightUrl} />
       
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 pb-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-24 pb-8">
         {/* Statistics Overview */}
         <StatsOverview />
         
