@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
       throw updateError;
     }
 
-    // Envoyer un message de bienvenue
+    // Envoyer un message de bienvenue et rappel pour inviter le bot
     await sendMessageToChannel(
       channelId,
       `🎉 Bienvenue dans le canal *${finalGroupName}* !`,
@@ -74,6 +74,13 @@ export async function POST(request: NextRequest) {
           text: {
             type: 'mrkdwn',
             text: `Ce canal est dédié aux membres du groupe *${finalGroupName}*.\n\nN'hésitez pas à échanger et partager vos idées !`,
+          },
+        },
+        {
+          type: 'section',
+          text: {
+            type: 'mrkdwn',
+            text: `⚠️ *Action requise pour l'admin :*\nPour que les messages de ce canal s'affichent dans l'application, invitez le bot *@ph2026_bot* au canal.\n\n*Comment faire :*\n1. Cliquez sur le nom du canal en haut\n2. Onglet "Intégrations"\n3. "Ajouter des apps"\n4. Recherchez et ajoutez *ph2026_bot*`,
           },
         },
       ]
@@ -91,6 +98,18 @@ export async function POST(request: NextRequest) {
           channel_name: channelName,
           group_name: finalGroupName,
         },
+      });
+
+    // Créer un rappel pour inviter le bot au canal privé
+    // On utilise la table slack_invitations de manière créative
+    await supabase
+      .from('slack_invitations')
+      .insert({
+        user_id: user.id, // L'admin qui a créé le canal
+        email: 'bot@ph2026.fr', // Email fictif pour identifier que c'est pour le bot
+        first_name: 'Bot PH2026',
+        last_name: `(Canal: ${channelName})`,
+        status: 'pending'
       });
 
     // Ajouter tous les membres connectés à Slack au canal
