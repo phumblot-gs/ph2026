@@ -14,8 +14,10 @@ export async function GET(request: NextRequest) {
     'channels:manage',      // Créer et gérer les canaux
     'channels:read',        // Lire les infos des canaux  
     'channels:history',     // Lire l'historique
+    'channels:write.invites', // Inviter des utilisateurs aux canaux publics
     'groups:read',          // Lire les canaux privés
     'groups:write',         // Gérer les canaux privés
+    'groups:write.invites', // Inviter des utilisateurs aux canaux privés
     'groups:history',       // Historique canaux privés
     'users:read',           // Lire les infos utilisateurs
     'users:read.email',     // Lire les emails

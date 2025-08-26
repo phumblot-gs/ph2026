@@ -53,6 +53,27 @@ export async function archiveSlackChannel(channelId: string): Promise<boolean> {
 }
 
 /**
+ * Désarchiver un canal Slack
+ */
+export async function unarchiveSlackChannel(channelId: string): Promise<boolean> {
+  if (!slackBotClient) {
+    console.error('Slack not configured');
+    return false;
+  }
+
+  try {
+    const result = await slackBotClient.conversations.unarchive({
+      channel: channelId,
+    });
+    console.log(`Channel ${channelId} unarchived successfully`);
+    return result.ok || false;
+  } catch (error: any) {
+    console.error('Error unarchiving channel:', error.data || error);
+    return false;
+  }
+}
+
+/**
  * Ajouter un utilisateur à un canal
  */
 export async function addUserToChannel(channelId: string, userId: string): Promise<boolean> {
@@ -80,6 +101,13 @@ export async function addUserToChannel(channelId: string, userId: string): Promi
       } catch (joinError) {
         console.error('Bot cannot join channel:', joinError);
       }
+    } else if (channelInfo.channel?.is_archived) {
+      console.log(`Channel ${channelId} is archived, unarchiving...`);
+      const unarchived = await unarchiveSlackChannel(channelId);
+      if (!unarchived) {
+        console.error('Failed to unarchive channel');
+        return false;
+      }
     }
     
     const result = await slackBotClient.conversations.invite({
@@ -93,6 +121,22 @@ export async function addUserToChannel(channelId: string, userId: string): Promi
     if (error.data?.error === 'already_in_channel') {
       console.log(`User ${userId} already in channel ${channelId}`);
       return true; // L'utilisateur est déjà dans le canal
+    }
+    if (error.data?.error === 'is_archived') {
+      console.log(`Channel ${channelId} is archived, attempting to unarchive...`);
+      const unarchived = await unarchiveSlackChannel(channelId);
+      if (unarchived) {
+        // Réessayer après désarchivage
+        try {
+          const result = await slackBotClient.conversations.invite({
+            channel: channelId,
+            users: userId,
+          });
+          return result.ok || false;
+        } catch (retryError: any) {
+          console.error('Error adding user after unarchive:', retryError.data || retryError);
+        }
+      }
     }
     console.error('Error adding user to channel:', error.data || error);
     return false;
