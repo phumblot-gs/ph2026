@@ -62,16 +62,39 @@ export async function addUserToChannel(channelId: string, userId: string): Promi
   }
 
   try {
+    console.log(`Attempting to add user ${userId} to channel ${channelId}`);
+    
+    // D'abord vérifier que le bot est bien dans le canal (nécessaire pour les canaux privés)
+    const channelInfo = await slackBotClient.conversations.info({
+      channel: channelId,
+    });
+    
+    if (!channelInfo.ok) {
+      console.error('Cannot access channel:', channelId);
+      // Essayer de rejoindre le canal d'abord
+      try {
+        await slackBotClient.conversations.join({
+          channel: channelId,
+        });
+        console.log('Bot joined channel:', channelId);
+      } catch (joinError) {
+        console.error('Bot cannot join channel:', joinError);
+      }
+    }
+    
     const result = await slackBotClient.conversations.invite({
       channel: channelId,
       users: userId,
     });
+    
+    console.log(`Successfully added user ${userId} to channel ${channelId}`);
     return result.ok || false;
   } catch (error: any) {
     if (error.data?.error === 'already_in_channel') {
+      console.log(`User ${userId} already in channel ${channelId}`);
       return true; // L'utilisateur est déjà dans le canal
     }
-    console.error('Error adding user to channel:', error);
+    console.error('Error adding user to channel:', error.data || error);
     return false;
   }
 }
