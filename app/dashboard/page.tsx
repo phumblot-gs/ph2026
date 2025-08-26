@@ -40,14 +40,15 @@ export default async function DashboardPage() {
   
   const groupIds = userGroups?.map(ug => ug.group_id) || []
   
-  // Get website URL and highlight URL for navigation
+  // Get website URL, highlight URL and donations setting for navigation
   const { data: navigationSettings } = await supabase
     .from('app_settings')
     .select('setting_key, setting_value')
-    .in('setting_key', ['website_url', 'highlight_url'])
+    .in('setting_key', ['website_url', 'highlight_url', 'donations_enabled'])
   
   const websiteUrl = navigationSettings?.find(s => s.setting_key === 'website_url')?.setting_value?.replace(/^https?:\/\//, '') || null
   const highlightUrl = navigationSettings?.find(s => s.setting_key === 'highlight_url')?.setting_value || null
+  const donationsEnabled = navigationSettings?.find(s => s.setting_key === 'donations_enabled')?.setting_value === 'true'
   
   // Récupérer les derniers membres qui ont rejoint ces groupes
   const { data: recentGroupMembers } = await supabase
@@ -115,27 +116,29 @@ export default async function DashboardPage() {
             </p>
           </div>
           
-          {/* Donation Card */}
-          <Card className="mb-6 bg-gradient-to-r from-blue-50 to-purple-50 border-blue-200">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="flex items-center">
-                  <Heart className="h-5 w-5 mr-2 text-red-500" />
-                  Soutenez notre mouvement
-                </CardTitle>
-                <CardDescription className="mt-2">
-                  Chaque contribution nous aide à porter nos idées plus loin
-                </CardDescription>
+          {/* Donation Card - Only show if donations are enabled */}
+          {donationsEnabled && (
+            <Card className="mb-6 bg-gradient-to-r from-blue-50 to-purple-50 border-blue-200">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center">
+                    <Heart className="h-5 w-5 mr-2 text-red-500" />
+                    Soutenez notre mouvement
+                  </CardTitle>
+                  <CardDescription className="mt-2">
+                    Chaque contribution nous aide à porter nos idées plus loin
+                  </CardDescription>
+                </div>
+                <Link href="/faire-un-don">
+                  <Button>
+                    Faire un don
+                  </Button>
+                </Link>
               </div>
-              <Link href="/faire-un-don">
-                <Button>
-                  Faire un don
-                </Button>
-              </Link>
-            </div>
-          </CardHeader>
-          </Card>
+            </CardHeader>
+            </Card>
+          )}
           
           {/* Main Content Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
