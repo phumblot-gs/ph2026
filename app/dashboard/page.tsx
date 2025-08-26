@@ -151,7 +151,6 @@ export default async function DashboardPage() {
                     slack_channel_id: group?.slack_channel_id || null
                   };
                 }) || []}
-                isSlackConnected={!!member?.slack_user_id}
               />
             </div>
           

@@ -33,23 +33,22 @@ interface GroupSlackMessagesProps {
     name: string;
     slack_channel_id: string | null;
   }>;
-  isSlackConnected: boolean;
 }
 
-export function GroupSlackMessages({ groups, isSlackConnected }: GroupSlackMessagesProps) {
+export function GroupSlackMessages({ groups }: GroupSlackMessagesProps) {
   const [messages, setMessages] = useState<Record<string, SlackMessage[]>>({});
   const [loading, setLoading] = useState<Record<string, boolean>>({});
   const [error, setError] = useState<Record<string, string>>({});
 
   useEffect(() => {
-    if (isSlackConnected) {
-      groups.forEach(group => {
-        if (group.slack_channel_id) {
-          loadMessages(group.id, group.slack_channel_id);
-        }
-      });
-    }
-  }, [groups, isSlackConnected]);
+    // On charge les messages même si l'utilisateur n'est pas connecté à Slack
+    // Le bot peut lire les messages pour lui
+    groups.forEach(group => {
+      if (group.slack_channel_id) {
+        loadMessages(group.id, group.slack_channel_id);
+      }
+    });
+  }, [groups]);
 
   async function loadMessages(groupId: string, channelId: string) {
     setLoading(prev => ({ ...prev, [groupId]: true }));
@@ -104,34 +103,7 @@ export function GroupSlackMessages({ groups, isSlackConnected }: GroupSlackMessa
     return text.substring(0, maxLength) + '...';
   }
 
-  if (!isSlackConnected) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <MessageSquare className="h-5 w-5" />
-            Discussions Slack
-          </CardTitle>
-          <CardDescription>
-            Connectez-vous à Slack pour voir les messages de vos groupes
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Alert>
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription>
-              <p className="mb-2">Vous n'êtes pas connecté à Slack.</p>
-              <Link href="/profile">
-                <Button variant="outline" size="sm">
-                  Se connecter à Slack
-                </Button>
-              </Link>
-            </AlertDescription>
-          </Alert>
-        </CardContent>
-      </Card>
-    );
-  }
+  // On n'exige plus la connexion Slack, le bot peut lire les messages
 
   if (groups.length === 0) {
     return (

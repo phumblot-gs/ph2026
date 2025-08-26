@@ -52,22 +52,18 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  // Vérifier que l'utilisateur est connecté à Slack
+  // Récupérer les infos du membre (optionnel, juste pour enrichir les données)
   const { data: member } = await supabase
     .from('members')
     .select('slack_user_id, slack_access_token')
     .eq('user_id', user.id)
     .single();
 
-  if (!member?.slack_user_id) {
-    return NextResponse.json(
-      { error: 'Non connecté à Slack' },
-      { status: 400 }
-    );
-  }
+  // On n'exige plus que l'utilisateur soit connecté à Slack
+  // Le bot peut lire les messages pour lui
 
   try {
-    // Récupérer les messages du canal avec le bot token
+    // Toujours utiliser le bot token pour lire les messages
     const messages = await getChannelMessages(channelId, limit);
 
     if (!messages) {
