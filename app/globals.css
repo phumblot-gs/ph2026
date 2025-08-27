@@ -57,3 +57,54 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Slack message formatting styles */
+@layer components {
+  .slack-message strong {
+    @apply font-semibold;
+  }
+  
+  .slack-message em {
+    @apply italic;
+  }
+  
+  .slack-message del {
+    @apply line-through opacity-75;
+  }
+  
+  .slack-message code {
+    @apply bg-gray-100 px-1 py-0.5 rounded text-sm font-mono;
+  }
+  
+  .slack-message.bg-blue-600 code {
+    @apply bg-blue-500 text-white;
+  }
+  
+  .slack-message pre {
+    @apply bg-gray-100 p-2 rounded my-1 overflow-x-auto;
+  }
+  
+  .slack-message.bg-blue-600 pre {
+    @apply bg-blue-500;
+  }
+  
+  .slack-message pre code {
+    @apply bg-transparent px-0 py-0;
+  }
+  
+  .slack-message blockquote {
+    @apply border-l-4 border-gray-300 pl-4 my-1 italic;
+  }
+  
+  .slack-message.bg-blue-600 blockquote {
+    @apply border-l-4 border-blue-400;
+  }
+  
+  .slack-message a {
+    @apply text-blue-600 hover:underline;
+  }
+  
+  .slack-message.bg-blue-600 a {
+    @apply text-blue-200 hover:text-blue-100;
+  }
+}
