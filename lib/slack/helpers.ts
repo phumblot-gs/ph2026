@@ -226,6 +226,7 @@ export async function listSlackChannels(includeArchived: boolean = true): Promis
 export async function getChannelMessages(
   channelId: string, 
   limit: number = 5,
+  before?: string | null,
   userToken?: string
 ): Promise<SlackMessage[]> {
   const client = userToken ? createUserSlackClient(userToken) : slackBotClient;
@@ -266,10 +267,19 @@ export async function getChannelMessages(
       }
     }
     
-    const result = await client.conversations.history({
+    // Créer les options pour l'API Slack
+    const options: any = {
       channel: channelId,
       limit,
-    });
+    };
+    
+    // Ajouter le paramètre latest pour pagination (messages avant ce timestamp)
+    if (before) {
+      options.latest = before;
+      options.inclusive = false; // Ne pas inclure le message au timestamp exact
+    }
+    
+    const result = await client.conversations.history(options);
 
     if (result.ok && result.messages) {
       // Enrichir avec les infos utilisateur
@@ -291,8 +301,41 @@ export async function getChannelMessages(
       // Mapper les infos utilisateur aux messages avec le bon format
       return messages.map(msg => {
         const userInfo = userInfos.find(u => u?.id === msg.user);
+        
+        
+        // Si le message a des blocs, extraire le texte réel et l'auteur
+        let realText = msg.text;
+        let authorFromContext = null;
+        
+        if (msg.blocks && msg.blocks.length > 0) {
+          // Chercher le bloc context qui contient la signature
+          const contextBlock = msg.blocks.find((block: any) => block.type === 'context');
+          if (contextBlock && contextBlock.elements && contextBlock.elements.length > 0) {
+            const contextText = contextBlock.elements[0].text;
+            
+            // Extraire l'ID Slack du context "Envoyé par Nom Prénom • U123"
+            const contextMatch = contextText.match(/• (U[A-Z0-9]+)$/);
+            if (contextMatch) {
+              authorFromContext = contextMatch[1];
+            }
+          }
+          
+          // Chercher le bloc section qui contient le message principal
+          const sectionBlock = msg.blocks.find((block: any) => block.type === 'section');
+          if (sectionBlock && sectionBlock.text && sectionBlock.text.text) {
+            realText = sectionBlock.text.text;
+            
+            // Si on a trouvé un auteur dans le context, ajouter une signature virtuelle
+            // pour que notre système de détection fonctionne
+            if (authorFromContext) {
+              realText = `_Envoyé par • ${authorFromContext}_\n${realText}`;
+            }
+          }
+        }
+        
         return {
           ...msg,
+          text: realText, // Utiliser le texte extrait/modifié
           user_profile: userInfo ? {
             name: userInfo.name || '',
             real_name: userInfo.real_name || userInfo.name || '',

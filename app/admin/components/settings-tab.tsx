@@ -24,7 +24,8 @@ import {
   Mail,
   AlertCircle,
   CheckCircle,
-  GripVertical
+  GripVertical,
+  MessageSquare
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import {
@@ -467,6 +468,77 @@ export default function SettingsTab() {
                 placeholder="18"
                 className="mt-1"
               />
+            </div>
+          </div>
+          
+          <div className="flex justify-end pt-4">
+            <Button
+              onClick={saveAllSettings}
+              disabled={saving}
+              className="flex items-center gap-2"
+            >
+              <Save className="h-4 w-4" />
+              Enregistrer les paramètres
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Slack Settings */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center">
+            <MessageSquare className="h-5 w-5 mr-2" />
+            Configuration Slack
+          </CardTitle>
+          <CardDescription>
+            Paramètres d'intégration avec Slack
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="slack_bot_token">Token du Bot Slack</Label>
+              <Input
+                id="slack_bot_token"
+                type="password"
+                value={settings.slack_bot_token || ''}
+                onChange={(e) => setSettings({ ...settings, slack_bot_token: e.target.value })}
+                placeholder="xoxb-..."
+                className="mt-1 font-mono"
+              />
+              <div className="mt-2 text-sm text-gray-600 space-y-1">
+                <p>Pour obtenir le token du bot :</p>
+                <ol className="list-decimal list-inside space-y-1 text-xs">
+                  <li>Allez sur <a href="https://api.slack.com/apps" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">api.slack.com/apps</a></li>
+                  <li>Sélectionnez votre application</li>
+                  <li>Allez dans "OAuth & Permissions"</li>
+                  <li>Copiez le "Bot User OAuth Token" (commence par xoxb-)</li>
+                </ol>
+              </div>
+            </div>
+            
+            <div className="p-3 bg-yellow-50 rounded-lg">
+              <p className="text-sm text-yellow-800 mb-2">
+                <strong>Important :</strong> Assurez-vous que le bot a les scopes suivants :
+              </p>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-xs">
+                <code className="px-1 py-0.5 bg-yellow-100 rounded">channels:history</code>
+                <code className="px-1 py-0.5 bg-yellow-100 rounded">channels:join</code>
+                <code className="px-1 py-0.5 bg-yellow-100 rounded">channels:read</code>
+                <code className="px-1 py-0.5 bg-yellow-100 rounded">chat:write</code>
+                <code className="px-1 py-0.5 bg-yellow-100 rounded">chat:write.public</code>
+                <code className="px-1 py-0.5 bg-yellow-100 rounded">files:read</code>
+                <code className="px-1 py-0.5 bg-yellow-100 rounded">files:write</code>
+                <code className="px-1 py-0.5 bg-yellow-100 rounded">groups:history</code>
+                <code className="px-1 py-0.5 bg-yellow-100 rounded">groups:read</code>
+                <code className="px-1 py-0.5 bg-yellow-100 rounded">im:history</code>
+                <code className="px-1 py-0.5 bg-yellow-100 rounded">im:read</code>
+                <code className="px-1 py-0.5 bg-yellow-100 rounded">mpim:history</code>
+                <code className="px-1 py-0.5 bg-yellow-100 rounded">mpim:read</code>
+                <code className="px-1 py-0.5 bg-yellow-100 rounded">users:read</code>
+                <code className="px-1 py-0.5 bg-yellow-100 rounded">users:read.email</code>
+              </div>
             </div>
           </div>
           

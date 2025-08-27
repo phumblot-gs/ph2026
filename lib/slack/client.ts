@@ -61,9 +61,30 @@ export interface SlackMessage {
   text: string;
   ts: string;
   type: string;
+  blocks?: Array<{
+    type: string;
+    text?: {
+      type: string;
+      text: string;
+    };
+    elements?: Array<{
+      type: string;
+      text: string;
+    }>;
+  }>;
   user_profile?: {
     name: string;
     real_name: string;
     image_48: string;
   };
+  files?: Array<{
+    id: string;
+    name: string;
+    mimetype: string;
+    url_private: string;
+    url_private_download: string;
+    permalink: string;
+    title?: string;
+    filetype?: string;
+  }>;
 }

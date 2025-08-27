@@ -59,6 +59,7 @@ export async function GET(request: NextRequest) {
 
     const slackUserId = identityResult.user.id;
     const slackUserToken = tokenData.authed_user?.access_token || tokenData.access_token;
+    const slackBotToken = tokenData.access_token; // Bot token is in access_token
 
     if (!slackUserId) {
       throw new Error('Slack user ID not found');
@@ -77,6 +78,37 @@ export async function GET(request: NextRequest) {
     if (updateError) {
       console.error('Error updating member with Slack info:', updateError);
       throw updateError;
+    }
+
+    // Sauvegarder le bot token dans app_settings si c'est le premier utilisateur ou si le token n'existe pas
+    if (slackBotToken && slackBotToken !== slackUserToken) {
+      const { data: existingToken } = await supabase
+        .from('app_settings')
+        .select('setting_value')
+        .eq('setting_key', 'slack_bot_token')
+        .single();
+      
+      if (!existingToken) {
+        // Créer le setting si il n'existe pas
+        await supabase
+          .from('app_settings')
+          .insert({
+            id: crypto.randomUUID(),
+            setting_key: 'slack_bot_token',
+            setting_value: slackBotToken,
+            description: 'Token du bot Slack pour envoyer des messages',
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          });
+      } else if (!existingToken.setting_value) {
+        // Mettre à jour si la valeur est vide
+        await supabase
+          .from('app_settings')
+          .update({
+            setting_value: slackBotToken
+          })
+          .eq('setting_key', 'slack_bot_token');
+      }
     }
 
     // Logger l'activité
