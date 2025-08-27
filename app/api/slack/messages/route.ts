@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { getChannelMessages } from '@/lib/slack/helpers';
+import { extractMessageSignature } from '@/lib/slack-formatter';
 
 export async function GET(request: NextRequest) {
   const supabase = await createClient();
@@ -16,6 +17,7 @@ export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
   const channelId = searchParams.get('channelId');
   const limit = parseInt(searchParams.get('limit') || '10');
+  const before = searchParams.get('before'); // Timestamp pour la pagination
 
   if (!channelId) {
     return NextResponse.json(
@@ -64,7 +66,8 @@ export async function GET(request: NextRequest) {
 
   try {
     // Toujours utiliser le bot token pour lire les messages
-    const messages = await getChannelMessages(channelId, limit);
+    // Passer le paramètre before pour la pagination
+    const messages = await getChannelMessages(channelId, limit, before);
 
     if (!messages) {
       return NextResponse.json(
@@ -85,6 +88,12 @@ export async function GET(request: NextRequest) {
           slackUserIds.push(match[1]);
         }
       }
+      
+      // Extraire aussi les IDs des signatures (début ou fin du message)
+      const { authorSlackId } = extractMessageSignature(msg.text || '');
+      if (authorSlackId) {
+        slackUserIds.push(authorSlackId);
+      }
     });
     
     // Dédupliquer les IDs
@@ -93,7 +102,7 @@ export async function GET(request: NextRequest) {
     // Récupérer les membres correspondants dans notre base
     const { data: members } = await supabase
       .from('members')
-      .select('slack_user_id, first_name, last_name, avatar_url')
+      .select('slack_user_id, first_name, last_name, photo_url')
       .in('slack_user_id', uniqueSlackUserIds);
     
     // Créer un map pour associer rapidement les IDs Slack aux membres
@@ -134,15 +143,26 @@ export async function GET(request: NextRequest) {
     };
     
     // Enrichir les messages avec les infos membres
-    const enrichedMessages = messages.map(msg => ({
-      ...msg,
-      member: memberMap.get(msg.user) || null,
-      text: replaceMentions(msg.text || ''), // Remplacer les mentions dans le texte
-      // Formater correctement le timestamp
-      timestamp: msg.ts, // Garder le timestamp Slack original
-    }));
+    const enrichedMessages = messages.map(msg => {
+      // Vérifier si le message a une signature pour identifier le vrai auteur
+      const { authorSlackId } = extractMessageSignature(msg.text || '');
+      const realAuthorId = authorSlackId || msg.user;
+      
+      
+      return {
+        ...msg,
+        member: memberMap.get(msg.user) || null,
+        realAuthor: memberMap.get(realAuthorId) || null, // Info du vrai auteur si différent
+        text: replaceMentions(msg.text || ''), // Remplacer les mentions dans le texte
+        // Formater correctement le timestamp
+        timestamp: msg.ts, // Garder le timestamp Slack original
+      };
+    });
 
-    return NextResponse.json({ messages: enrichedMessages });
+    return NextResponse.json({ 
+      messages: enrichedMessages,
+      membersMap: Object.fromEntries(memberMap) // Envoyer aussi le mapping complet des membres
+    });
   } catch (error) {
     console.error('Error fetching Slack messages:', error);
     return NextResponse.json(
