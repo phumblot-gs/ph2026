@@ -15,6 +15,7 @@ import { formatSlackMessage, formatSlackMessagePreview, extractMessageSignature 
 import { slackRealtime } from '@/lib/slack/realtime'
 import EmojiPicker from 'emoji-picker-react'
 import { AudioPlayer } from '@/components/audio-player'
+import { FilePreview, FileList } from '@/components/file-preview'
 
 interface SlackMessage {
   user: string
@@ -48,6 +49,7 @@ interface SlackMessage {
     permalink: string
     title?: string
     filetype?: string
+    size?: number
   }>
 }
 
@@ -76,6 +78,9 @@ export function SlackChatInterface({ groups, currentUserId, initialMessages, cac
   const [inputMessage, setInputMessage] = useState('')
   const [sendingMessage, setSendingMessage] = useState(false)
   const [sendError, setSendError] = useState<string | null>(null)
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([])
+  const [isDragging, setIsDragging] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const [isSlackConnected, setIsSlackConnected] = useState(false)
   const [currentUserSlackId, setCurrentUserSlackId] = useState<string | null>(null)
   const [hasLoadedFullMessages, setHasLoadedFullMessages] = useState<Record<string, boolean>>({})
@@ -485,8 +490,19 @@ export function SlackChatInterface({ groups, currentUserId, initialMessages, cac
             const existingMessages = prev[groupId] || []
             const newMessageIds = new Set(channelMessages.map((m: any) => m.ts || m.timestamp))
             
-            // Keep any very recent messages that might not have appeared in Slack yet
-            const veryRecentMessages = existingMessages.filter((m: any) => {
+            // First, filter out ALL temporary messages (those with temp- IDs in their files)
+            // regardless of their age
+            const nonTemporaryMessages = existingMessages.filter((m: any) => {
+              // Remove any message with temporary file IDs
+              if (m.files && m.files.some((f: any) => f.id?.startsWith('temp-'))) {
+                return false
+              }
+              return true
+            })
+            
+            // Then, from the non-temporary messages, keep only very recent ones 
+            // that might not have appeared in Slack yet
+            const veryRecentMessages = nonTemporaryMessages.filter((m: any) => {
               const msgTime = parseFloat(m.ts || m.timestamp) * 1000
               const isVeryRecent = Date.now() - msgTime < 3000 // Messages from last 3 seconds
               return isVeryRecent && !newMessageIds.has(m.ts || m.timestamp)
@@ -634,7 +650,12 @@ export function SlackChatInterface({ groups, currentUserId, initialMessages, cac
               const newMessageIds = new Set(channelMessages.map((m: any) => m.ts || m.timestamp))
               
               // Garder tous les anciens messages qui ne sont pas dans les nouveaux
+              // MAIS exclure les messages temporaires
               const oldMessages = existingMessages.filter(m => {
+                // Remove any message with temporary file IDs
+                if (m.files && m.files.some((f: any) => f.id?.startsWith('temp-'))) {
+                  return false
+                }
                 const timestamp = m.ts || m.timestamp
                 // Garder si ce n'est pas dans les nouveaux messages récupérés
                 return !newMessageIds.has(timestamp)
@@ -655,7 +676,18 @@ export function SlackChatInterface({ groups, currentUserId, initialMessages, cac
             
             // Sinon, comportement normal : garder les messages très récents
             const newMessageIds = new Set(channelMessages.map((m: any) => m.ts || m.timestamp))
-            const veryRecentMessages = existingMessages.filter((m: any) => {
+            
+            // First, filter out ALL temporary messages (those with temp- IDs in their files)
+            const nonTemporaryMessages = existingMessages.filter((m: any) => {
+              // Remove any message with temporary file IDs
+              if (m.files && m.files.some((f: any) => f.id?.startsWith('temp-'))) {
+                return false
+              }
+              return true
+            })
+            
+            // Then keep only very recent non-temporary messages
+            const veryRecentMessages = nonTemporaryMessages.filter((m: any) => {
               const msgTime = parseFloat(m.ts || m.timestamp) * 1000
               const isVeryRecent = Date.now() - msgTime < 3000 // Messages from last 3 seconds
               return isVeryRecent && !newMessageIds.has(m.ts || m.timestamp)
@@ -934,68 +966,109 @@ export function SlackChatInterface({ groups, currentUserId, initialMessages, cac
   }
 
   const sendMessage = async () => {
-    if (!inputMessage.trim() || !selectedChannel?.slack_channel_id || sendingMessage) return
+    if ((!inputMessage.trim() && selectedFiles.length === 0) || !selectedChannel?.slack_channel_id || sendingMessage) return
 
     setSendingMessage(true)
     setSendError(null)
     
-    try {
-      const response = await fetch('/api/slack/send-message', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          channel: selectedChannel.slack_channel_id,
-          text: inputMessage
-        })
-      })
-
-      const data = await response.json()
-      
-      if (response.ok) {
-        setInputMessage('')
-        
-        // Réinitialiser la hauteur du textarea
-        if (inputRef.current) {
-          inputRef.current.style.height = '38px'
-        }
-        
-        // Ajouter un message temporaire en attendant le rafraîchissement
-        const tempMessage: SlackMessage = {
-          user: currentUserSlackId || '',
-          text: inputMessage,
-          timestamp: String(Date.now() / 1000),
-          ts: String(Date.now() / 1000),
-          channel: selectedChannel.slack_channel_id,
-          member: null,
-          user_profile: undefined
-        }
-        
-        // Ajouter temporairement le message
-        const currentMessages = messages[selectedChannel.id] || []
-        setMessages(prev => ({
-          ...prev,
-          [selectedChannel.id]: [...currentMessages, tempMessage]
-        }))
-        
-        // Mark channel as read when user sends a message (they've seen all messages including this one)
-        markChannelAsRead(selectedChannel.id)
-        
-        // Attendre un peu pour que Slack traite le message
-        setRefreshingAfterSend(true)
-        // Reset scroll flag when sending a message
-        setUserHasScrolled(false)
-        setTimeout(async () => {
-          // Recharger les messages depuis l'API Slack
-          await loadChannelMessages(selectedChannel.id, selectedChannel.slack_channel_id || '', true)
-          setRefreshingAfterSend(false)
-          // Scroll vers le bas après rafraîchissement
-          setUserHasScrolled(false)
-          setTimeout(() => scrollToBottom(), 100)
-        }, 1500)
-      } else {
-        setSendError(data.error || 'Erreur lors de l\'envoi du message')
-        console.error('Send error:', data)
+    // Capturer les valeurs avant de les réinitialiser
+    const messageToSend = inputMessage
+    const filesToSend = [...selectedFiles]
+    
+    // Réinitialiser immédiatement l'interface
+    setInputMessage('')
+    setSelectedFiles([])
+    if (inputRef.current) {
+      inputRef.current.style.height = '38px'
+    }
+    
+    // Ajouter immédiatement le message/fichier temporaire à l'interface
+    if (messageToSend || filesToSend.length > 0) {
+      const tempMessage: SlackMessage = {
+        user: currentUserSlackId || '',
+        text: filesToSend.length > 0 
+          ? (messageToSend || `📎 ${filesToSend.map(f => f.name).join(', ')}`)
+          : messageToSend,
+        timestamp: String(Date.now() / 1000),
+        ts: String(Date.now() / 1000),
+        channel: selectedChannel.slack_channel_id,
+        member: null,
+        user_profile: undefined,
+        files: filesToSend.length > 0 ? filesToSend.map(file => ({
+          id: `temp-${Date.now()}-${Math.random()}`,
+          name: file.name,
+          mimetype: file.type,
+          url_private: '',
+          url_private_download: '',
+          permalink: '',
+          title: file.name,
+          filetype: file.name.split('.').pop() || '',
+          size: file.size
+        })) : undefined
       }
+      
+      // Ajouter temporairement le message
+      const currentMessages = messages[selectedChannel.id] || []
+      setMessages(prev => ({
+        ...prev,
+        [selectedChannel.id]: [...currentMessages, tempMessage]
+      }))
+      
+      // Scroll immédiatement vers le bas
+      setUserHasScrolled(false)
+      setTimeout(() => scrollToBottom(), 50)
+    }
+    
+    // Mark channel as read
+    markChannelAsRead(selectedChannel.id)
+    
+    // Indiquer que le message est en cours d'envoi
+    setRefreshingAfterSend(true)
+    
+    try {
+      // Envoyer en arrière-plan
+      if (filesToSend.length > 0) {
+        for (const file of filesToSend) {
+          const formData = new FormData()
+          formData.append('file', file)
+          formData.append('channel', selectedChannel.slack_channel_id)
+          formData.append('title', file.name)
+          formData.append('initial_comment', messageToSend || '')
+          
+          const uploadResponse = await fetch('/api/slack/upload-file', {
+            method: 'POST',
+            body: formData
+          })
+          
+          if (!uploadResponse.ok) {
+            const error = await uploadResponse.json()
+            throw new Error(error.error || 'Erreur lors de l\'upload du fichier')
+          }
+        }
+      } else if (messageToSend) {
+        const response = await fetch('/api/slack/send-message', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            channel: selectedChannel.slack_channel_id,
+            text: messageToSend
+          })
+        })
+
+        const data = await response.json()
+        
+        if (!response.ok) {
+          throw new Error(data.error || 'Erreur lors de l\'envoi du message')
+        }
+      }
+      
+      // Attendre un peu puis rafraîchir pour obtenir le vrai message de Slack
+      setTimeout(async () => {
+        await loadChannelMessages(selectedChannel.id, selectedChannel.slack_channel_id || '', true)
+        setRefreshingAfterSend(false)
+        setUserHasScrolled(false)
+        setTimeout(() => scrollToBottom(), 100)
+      }, 1500)
     } catch (error) {
       console.error('Error sending message:', error)
       setSendError('Erreur de connexion au serveur')
@@ -1190,7 +1263,56 @@ export function SlackChatInterface({ groups, currentUserId, initialMessages, cac
       </div>
 
       {/* Chat Area */}
-      <div className="flex-1 flex flex-col overflow-hidden relative">
+      <div 
+        className="flex-1 flex flex-col overflow-hidden relative"
+        onDragOver={(e) => {
+          e.preventDefault()
+          e.stopPropagation()
+          setIsDragging(true)
+        }}
+        onDragEnter={(e) => {
+          e.preventDefault()
+          e.stopPropagation()
+          setIsDragging(true)
+        }}
+        onDragLeave={(e) => {
+          e.preventDefault()
+          e.stopPropagation()
+          // Only set isDragging to false if we're leaving the container
+          if (e.currentTarget === e.target) {
+            setIsDragging(false)
+          }
+        }}
+        onDrop={(e) => {
+          e.preventDefault()
+          e.stopPropagation()
+          setIsDragging(false)
+          
+          const files = Array.from(e.dataTransfer.files)
+          if (files.length > 0) {
+            setSelectedFiles(prev => [...prev, ...files])
+          }
+        }}
+      >
+        {/* Drag overlay */}
+        {isDragging && (
+          <div className="absolute inset-0 z-50 bg-blue-50/90 flex items-center justify-center pointer-events-none">
+            <div className="text-center">
+              <div className="mb-4">
+                <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-100 rounded-full">
+                  <Paperclip className="h-8 w-8 text-blue-600" />
+                </div>
+              </div>
+              <p className="text-xl font-semibold text-blue-900">
+                Charger dans {selectedChannel?.name || 'le canal'}
+              </p>
+              <p className="text-sm text-blue-700 mt-2">
+                Relâchez pour ajouter les fichiers
+              </p>
+            </div>
+          </div>
+        )}
+        
         {/* Channel Header */}
         <div className="px-4 py-3 border-b border-gray-200 bg-white flex-shrink-0">
           <div className="flex items-center justify-between">
@@ -1338,19 +1460,45 @@ export function SlackChatInterface({ groups, currentUserId, initialMessages, cac
                           )
                         }
                         
-                        // Message texte normal
+                        // Message texte normal avec fichiers éventuels
+                        // Extraire le texte sans signature pour vérifier s'il y a du contenu
+                        const { cleanText } = extractMessageSignature(msg.text || '')
+                        const hasTextContent = cleanText && cleanText.trim().length > 0
+                        
                         return (
-                          <div
-                            key={msgIndex}
-                            className={cn(
-                              "px-3 py-2 rounded-lg text-sm break-words slack-message",
-                              group.isCurrentUser 
-                                ? "bg-blue-100 text-gray-900" 
-                                : "bg-gray-100 text-gray-800"
+                          <div key={msgIndex} className="flex flex-col gap-2">
+                            {hasTextContent && (
+                              <div
+                                className={cn(
+                                  "px-3 py-2 rounded-lg text-sm break-words slack-message",
+                                  group.isCurrentUser 
+                                    ? "bg-blue-100 text-gray-900" 
+                                    : "bg-gray-100 text-gray-800"
+                                )}
+                                style={{ display: 'inline-block' }}
+                                dangerouslySetInnerHTML={{ __html: formatSlackMessage(msg.text) }}
+                              />
                             )}
-                            style={{ display: 'inline-block' }}
-                            dangerouslySetInnerHTML={{ __html: formatSlackMessage(msg.text) }}
-                          />
+                            {msg.files && msg.files.length > 0 && (
+                              <FileList
+                                files={msg.files.map(file => ({
+                                  id: file.id,
+                                  name: file.name,
+                                  mimetype: file.mimetype,
+                                  url_private: file.url_private,
+                                  url_private_download: file.url_private_download,
+                                  permalink: file.permalink,
+                                  title: file.title,
+                                  filetype: file.filetype,
+                                  size: file.size
+                                }))}
+                                isLocal={false}
+                                className={cn(
+                                  group.isCurrentUser && "ml-auto"
+                                )}
+                              />
+                            )}
+                          </div>
                         )
                       })}
                     </div>
@@ -1359,9 +1507,9 @@ export function SlackChatInterface({ groups, currentUserId, initialMessages, cac
               ))}
                   <div ref={scrollRef} />
                   {refreshingAfterSend && (
-                    <div className="flex items-center justify-center gap-1.5 text-xs text-gray-400 mt-2">
+                    <div className="flex items-center justify-center gap-1.5 text-xs text-gray-400 mt-2 opacity-60">
                       <Loader2 className="h-3 w-3 animate-spin" />
-                      <span>Synchronisation du message...</span>
+                      <span>Synchronisation...</span>
                     </div>
                   )}
                 </div>
@@ -1383,6 +1531,23 @@ export function SlackChatInterface({ groups, currentUserId, initialMessages, cac
                   {sendError}
                 </AlertDescription>
               </Alert>
+            )}
+            {selectedFiles.length > 0 && (
+              <div className="mb-2">
+                <FileList
+                  files={selectedFiles.map(file => ({
+                    name: file.name,
+                    mimetype: file.type,
+                    size: file.size,
+                    file: file
+                  }))}
+                  onRemove={(index) => {
+                    setSelectedFiles(prev => prev.filter((_, i) => i !== index))
+                  }}
+                  isLocal={true}
+                  className="mb-2"
+                />
+              </div>
             )}
             {showFormatting && (
               <div className="flex items-center gap-1 mb-2 p-2 bg-white border border-gray-200 rounded-lg">
@@ -1445,10 +1610,24 @@ export function SlackChatInterface({ groups, currentUserId, initialMessages, cac
               </div>
             )}
             <div className="flex gap-2 items-end">
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                className="hidden"
+                onChange={(e) => {
+                  const files = Array.from(e.target.files || [])
+                  setSelectedFiles(prev => [...prev, ...files])
+                  if (fileInputRef.current) {
+                    fileInputRef.current.value = ''
+                  }
+                }}
+              />
               <Button
                 variant="ghost"
                 size="icon"
                 className="text-gray-500 hover:text-gray-700"
+                onClick={() => fileInputRef.current?.click()}
               >
                 <Paperclip className="h-5 w-5" />
               </Button>
@@ -1619,7 +1798,7 @@ export function SlackChatInterface({ groups, currentUserId, initialMessages, cac
               )}
               <Button
                 onClick={sendMessage}
-                disabled={!inputMessage.trim() || sendingMessage}
+                disabled={(!inputMessage.trim() && selectedFiles.length === 0) || sendingMessage}
               >
                 {sendingMessage ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
