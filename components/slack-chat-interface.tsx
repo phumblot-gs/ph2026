@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { Send, Paperclip, Smile, Mic, Hash, Loader2, ChevronUp, Bold, Italic, Strikethrough, Link2, List, ListOrdered, Type, Square, MicOff } from 'lucide-react'
+import { Send, Paperclip, Smile, Mic, Hash, Loader2, ChevronUp, Bold, Italic, Strikethrough, Link2, List, ListOrdered, Type, Square, MicOff, Edit2, Trash2, X, Check } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -9,6 +9,16 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import { formatSlackMessage, formatSlackMessagePreview, extractMessageSignature } from '@/lib/slack-formatter'
@@ -51,6 +61,7 @@ interface SlackMessage {
     filetype?: string
     size?: number
   }>
+  isTemporary?: boolean // Marqueur pour les messages temporaires locaux
 }
 
 interface SlackGroup {
@@ -89,6 +100,15 @@ export function SlackChatInterface({ groups, currentUserId, initialMessages, cac
   const [refreshingAfterSend, setRefreshingAfterSend] = useState(false)
   const [hasMoreMessages, setHasMoreMessages] = useState<Record<string, boolean>>({})
   const [loadingMoreMessages, setLoadingMoreMessages] = useState(false)
+  const [hoveredMessage, setHoveredMessage] = useState<string | null>(null)
+  const [editingMessage, setEditingMessage] = useState<{ ts: string; text: string } | null>(null)
+  const [editingText, setEditingText] = useState('')
+  const [deletingMessage, setDeletingMessage] = useState<SlackMessage | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
+  const [isUpdating, setIsUpdating] = useState(false)
+  const [showEditFormatting, setShowEditFormatting] = useState(false)
+  const [showEditEmoji, setShowEditEmoji] = useState(false)
+  const editTextareaRef = useRef<HTMLTextAreaElement>(null)
   const [isLoadingHistory, setIsLoadingHistory] = useState(false)
   const [hasLoadedHistoryRecently, setHasLoadedHistoryRecently] = useState(false)
   const [oldestTimestamp, setOldestTimestamp] = useState<Record<string, string>>({})
@@ -488,11 +508,16 @@ export function SlackChatInterface({ groups, currentUserId, initialMessages, cac
           setMessages(prev => {
             // Check if we have temporary messages that might not be in the new load
             const existingMessages = prev[groupId] || []
-            const newMessageIds = new Set(channelMessages.map((m: any) => m.ts || m.timestamp))
             
-            // First, filter out ALL temporary messages (those with temp- IDs in their files)
-            // regardless of their age
+            // Filter out ALL temporary messages completely
+            // Messages are temporary if they have:
+            // - isTemporary flag
+            // - temp- file IDs
             const nonTemporaryMessages = existingMessages.filter((m: any) => {
+              // Remove messages explicitly marked as temporary
+              if (m.isTemporary) {
+                return false
+              }
               // Remove any message with temporary file IDs
               if (m.files && m.files.some((f: any) => f.id?.startsWith('temp-'))) {
                 return false
@@ -500,25 +525,9 @@ export function SlackChatInterface({ groups, currentUserId, initialMessages, cac
               return true
             })
             
-            // Then, from the non-temporary messages, keep only very recent ones 
-            // that might not have appeared in Slack yet
-            const veryRecentMessages = nonTemporaryMessages.filter((m: any) => {
-              const msgTime = parseFloat(m.ts || m.timestamp) * 1000
-              const isVeryRecent = Date.now() - msgTime < 3000 // Messages from last 3 seconds
-              return isVeryRecent && !newMessageIds.has(m.ts || m.timestamp)
-            })
-            
-            // Combine new messages with very recent ones
-            const combinedMessages = [...channelMessages, ...veryRecentMessages]
-            
-            // Sort by timestamp to maintain order
-            combinedMessages.sort((a, b) => {
-              const timeA = parseFloat(a.ts || a.timestamp)
-              const timeB = parseFloat(b.ts || b.timestamp)
-              return timeA - timeB
-            })
-            
-            return { ...prev, [groupId]: combinedMessages }
+            // Don't keep any recent messages that might be duplicates
+            // Just use the fresh data from Slack
+            return { ...prev, [groupId]: channelMessages }
           })
         }
         
@@ -652,6 +661,10 @@ export function SlackChatInterface({ groups, currentUserId, initialMessages, cac
               // Garder tous les anciens messages qui ne sont pas dans les nouveaux
               // MAIS exclure les messages temporaires
               const oldMessages = existingMessages.filter(m => {
+                // Remove messages explicitly marked as temporary
+                if (m.isTemporary) {
+                  return false
+                }
                 // Remove any message with temporary file IDs
                 if (m.files && m.files.some((f: any) => f.id?.startsWith('temp-'))) {
                   return false
@@ -674,36 +687,10 @@ export function SlackChatInterface({ groups, currentUserId, initialMessages, cac
               return { ...prev, [groupId]: mergedMessages }
             }
             
-            // Sinon, comportement normal : garder les messages très récents
-            const newMessageIds = new Set(channelMessages.map((m: any) => m.ts || m.timestamp))
-            
-            // First, filter out ALL temporary messages (those with temp- IDs in their files)
-            const nonTemporaryMessages = existingMessages.filter((m: any) => {
-              // Remove any message with temporary file IDs
-              if (m.files && m.files.some((f: any) => f.id?.startsWith('temp-'))) {
-                return false
-              }
-              return true
-            })
-            
-            // Then keep only very recent non-temporary messages
-            const veryRecentMessages = nonTemporaryMessages.filter((m: any) => {
-              const msgTime = parseFloat(m.ts || m.timestamp) * 1000
-              const isVeryRecent = Date.now() - msgTime < 3000 // Messages from last 3 seconds
-              return isVeryRecent && !newMessageIds.has(m.ts || m.timestamp)
-            })
-            
-            // Combine new messages with very recent ones
-            const combinedMessages = [...channelMessages, ...veryRecentMessages]
-            
-            // Sort by timestamp to maintain order
-            combinedMessages.sort((a, b) => {
-              const timeA = parseFloat(a.ts || a.timestamp)
-              const timeB = parseFloat(b.ts || b.timestamp)
-              return timeA - timeB
-            })
-            
-            return { ...prev, [groupId]: combinedMessages }
+            // Sinon, remplacer complètement par les nouveaux messages
+            // Ne PAS garder les messages récents pour éviter la duplication
+            // Slack est notre source de vérité
+            return { ...prev, [groupId]: channelMessages }
           })
         }
         
@@ -994,6 +981,7 @@ export function SlackChatInterface({ groups, currentUserId, initialMessages, cac
         channel: selectedChannel.slack_channel_id,
         member: null,
         user_profile: undefined,
+        isTemporary: true, // Marqueur explicite pour les messages temporaires
         files: filesToSend.length > 0 ? filesToSend.map(file => ({
           id: `temp-${Date.now()}-${Math.random()}`,
           name: file.name,
@@ -1084,6 +1072,120 @@ export function SlackChatInterface({ groups, currentUserId, initialMessages, cac
     if (inputRef.current) {
       inputRef.current.focus()
     }
+  }
+
+  const handleDeleteMessage = async () => {
+    if (!deletingMessage || !selectedChannel || isDeleting) return
+    
+    setIsDeleting(true)
+    try {
+      const response = await fetch('/api/slack/delete-message', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          channel: selectedChannel.slack_channel_id,
+          timestamp: deletingMessage.ts || deletingMessage.timestamp
+        })
+      })
+      
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Erreur lors de la suppression')
+      }
+      
+      // Supprimer le message de la liste locale
+      setMessages(prev => ({
+        ...prev,
+        [selectedChannel.id]: (prev[selectedChannel.id] || []).filter(
+          msg => (msg.ts || msg.timestamp) !== (deletingMessage.ts || deletingMessage.timestamp)
+        )
+      }))
+      
+      setDeletingMessage(null)
+    } catch (error: any) {
+      console.error('Erreur suppression message:', error)
+      setSendError(error.message || 'Erreur lors de la suppression du message')
+    } finally {
+      setIsDeleting(false)
+    }
+  }
+
+  const handleUpdateMessage = async () => {
+    if (!editingMessage || !selectedChannel || !editingText.trim() || isUpdating) return
+    
+    setIsUpdating(true)
+    try {
+      const response = await fetch('/api/slack/update-message', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          channel: selectedChannel.slack_channel_id,
+          timestamp: editingMessage.ts,
+          text: editingText
+        })
+      })
+      
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Erreur lors de la modification')
+      }
+      
+      // Mettre à jour le message dans la liste locale avec la nouvelle signature
+      // Récupérer les infos de l'utilisateur pour reconstruire la signature
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        const { data: member } = await supabase
+          .from('members')
+          .select('slack_user_id, first_name, last_name')
+          .eq('user_id', user.id)
+          .single()
+        
+        if (member) {
+          // Reconstruire le texte avec la signature SANS mention modifié
+          const updatedText = `_Envoyé par ${member.first_name} ${member.last_name} • ${member.slack_user_id}_\n${editingText}`
+          
+          setMessages(prev => ({
+            ...prev,
+            [selectedChannel.id]: (prev[selectedChannel.id] || []).map(msg => {
+              if ((msg.ts || msg.timestamp) === editingMessage.ts) {
+                return { ...msg, text: updatedText }
+              }
+              return msg
+            })
+          }))
+        }
+      }
+      
+      setEditingMessage(null)
+      setEditingText('')
+    } catch (error: any) {
+      console.error('Erreur modification message:', error)
+      setSendError(error.message || 'Erreur lors de la modification du message')
+    } finally {
+      setIsUpdating(false)
+    }
+  }
+
+  const startEditMessage = (msg: SlackMessage) => {
+    // Extraire le texte sans la signature
+    const { cleanText } = extractMessageSignature(msg.text || '')
+    setEditingMessage({ ts: msg.ts || msg.timestamp, text: msg.text })
+    setEditingText(cleanText)
+    
+    // Ajuster la hauteur du textarea après le rendu pour correspondre au contenu
+    setTimeout(() => {
+      if (editTextareaRef.current) {
+        editTextareaRef.current.style.height = 'auto'
+        const scrollHeight = editTextareaRef.current.scrollHeight
+        // Limiter à 500px maximum
+        editTextareaRef.current.style.height = Math.min(scrollHeight, 500) + 'px'
+      }
+    }, 0)
+  }
+
+  const cancelEdit = () => {
+    setEditingMessage(null)
+    setEditingText('')
   }
 
   const loadMoreMessages = async () => {
@@ -1464,20 +1566,278 @@ export function SlackChatInterface({ groups, currentUserId, initialMessages, cac
                         // Extraire le texte sans signature pour vérifier s'il y a du contenu
                         const { cleanText } = extractMessageSignature(msg.text || '')
                         const hasTextContent = cleanText && cleanText.trim().length > 0
+                        const messageKey = msg.ts || msg.timestamp
+                        const isEditing = editingMessage?.ts === messageKey
+                        const isHovered = hoveredMessage === messageKey
+                        
+                        // Vérifier si le message a été envoyé via notre bot (a une signature/realAuthor)
+                        // Seuls les messages avec realAuthor peuvent être modifiés/supprimés
+                        const canEditOrDelete = group.isCurrentUser && msg.realAuthor
                         
                         return (
-                          <div key={msgIndex} className="flex flex-col gap-2">
-                            {hasTextContent && (
-                              <div
-                                className={cn(
-                                  "px-3 py-2 rounded-lg text-sm break-words slack-message",
-                                  group.isCurrentUser 
-                                    ? "bg-blue-100 text-gray-900" 
-                                    : "bg-gray-100 text-gray-800"
+                          <div 
+                            key={msgIndex} 
+                            className="relative flex flex-col gap-2"
+                            onMouseEnter={() => canEditOrDelete && setHoveredMessage(messageKey)}
+                            onMouseLeave={() => setHoveredMessage(null)}
+                          >
+                            {/* Boutons d'action au survol */}
+                            {canEditOrDelete && isHovered && !isEditing && (
+                              <div className="absolute -top-8 right-0 flex gap-1 bg-white rounded-lg shadow-md border p-1 z-10">
+                                {hasTextContent && !msg.files?.length && (
+                                  <Button
+                                    size="icon"
+                                    variant="ghost"
+                                    className="h-7 w-7"
+                                    onClick={() => startEditMessage(msg)}
+                                    title="Modifier"
+                                  >
+                                    <Edit2 className="h-4 w-4" />
+                                  </Button>
                                 )}
-                                style={{ display: 'inline-block' }}
-                                dangerouslySetInnerHTML={{ __html: formatSlackMessage(msg.text) }}
-                              />
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-7 w-7 text-red-500 hover:text-red-600"
+                                  onClick={() => setDeletingMessage(msg)}
+                                  title="Supprimer"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            )}
+                            
+                            {/* Mode édition ou affichage normal */}
+                            {isEditing ? (
+                              <div className="flex flex-col gap-2">
+                                <div className="flex gap-2 items-end">
+                                  <div className="w-[500px] relative">
+                                    <Textarea
+                                      ref={editTextareaRef}
+                                      value={editingText}
+                                      onChange={(e) => {
+                                        setEditingText(e.target.value)
+                                        // Auto-resize avec limite à 500px
+                                        e.target.style.height = 'auto'
+                                        const scrollHeight = e.target.scrollHeight
+                                        e.target.style.height = Math.min(scrollHeight, 500) + 'px'
+                                      }}
+                                      className="w-full resize-none pr-20"
+                                      style={{ minHeight: '40px', maxHeight: '500px' }}
+                                      placeholder="Modifier le message..."
+                                      onKeyDown={(e) => {
+                                        // Raccourcis clavier pour la mise en forme
+                                        if ((e.metaKey || e.ctrlKey) && !e.shiftKey) {
+                                          const textarea = e.currentTarget
+                                          const start = textarea.selectionStart
+                                          const end = textarea.selectionEnd
+                                          const selectedText = editingText.substring(start, end)
+                                          let formattedText = ''
+                                          let cursorOffset = 1
+                                          
+                                          switch(e.key) {
+                                            case 'b': // Gras
+                                              e.preventDefault()
+                                              formattedText = selectedText ? `*${selectedText}*` : '**'
+                                              break
+                                            case 'i': // Italique
+                                              e.preventDefault()
+                                              formattedText = selectedText ? `_${selectedText}_` : '__'
+                                              break
+                                            case 'k': // Lien
+                                              e.preventDefault()
+                                              if (selectedText.startsWith('http')) {
+                                                formattedText = `<${selectedText}|texte du lien>`
+                                                cursorOffset = formattedText.length - 1
+                                              } else {
+                                                formattedText = selectedText ? `<url|${selectedText}>` : '<url|texte>'
+                                                cursorOffset = 1
+                                              }
+                                              break
+                                            case 'e': // Code inline
+                                              e.preventDefault()
+                                              formattedText = selectedText ? `\`${selectedText}\`` : '``'
+                                              break
+                                          }
+                                          
+                                          if (formattedText) {
+                                            const newText = editingText.substring(0, start) + formattedText + editingText.substring(end)
+                                            setEditingText(newText)
+                                            setTimeout(() => {
+                                              textarea.selectionStart = textarea.selectionEnd = selectedText ? start + formattedText.length : start + cursorOffset
+                                              textarea.focus()
+                                            }, 0)
+                                          }
+                                        }
+                                        
+                                        // Raccourci pour valider
+                                        if (e.key === 'Enter' && !e.shiftKey) {
+                                          e.preventDefault()
+                                          handleUpdateMessage()
+                                        }
+                                        
+                                        // Raccourci pour annuler
+                                        if (e.key === 'Escape') {
+                                          cancelEdit()
+                                          setShowEditFormatting(false)
+                                          setShowEditEmoji(false)
+                                        }
+                                      }}
+                                      autoFocus
+                                    />
+                                    <div className="absolute bottom-2 right-2 flex gap-1">
+                                      <Popover open={showEditFormatting} onOpenChange={setShowEditFormatting}>
+                                        <PopoverTrigger asChild>
+                                          <Button
+                                            size="icon"
+                                            variant="ghost"
+                                            className="h-7 w-7"
+                                            type="button"
+                                          >
+                                            <Type className="h-4 w-4" />
+                                          </Button>
+                                        </PopoverTrigger>
+                                        <PopoverContent className="w-auto p-2" align="end">
+                                          <div className="flex gap-1">
+                                            <Button
+                                              size="icon"
+                                              variant="ghost"
+                                              className="h-7 w-7"
+                                              onClick={() => {
+                                                const textarea = editTextareaRef.current
+                                                if (!textarea) return
+                                                const start = textarea.selectionStart
+                                                const end = textarea.selectionEnd
+                                                const selectedText = editingText.substring(start, end)
+                                                const formattedText = selectedText ? `*${selectedText}*` : '**'
+                                                const newText = editingText.substring(0, start) + formattedText + editingText.substring(end)
+                                                setEditingText(newText)
+                                                setTimeout(() => {
+                                                  textarea.selectionStart = textarea.selectionEnd = selectedText ? start + formattedText.length : start + 1
+                                                  textarea.focus()
+                                                }, 0)
+                                              }}
+                                            >
+                                              <Bold className="h-4 w-4" />
+                                            </Button>
+                                            <Button
+                                              size="icon"
+                                              variant="ghost"
+                                              className="h-7 w-7"
+                                              onClick={() => {
+                                                const textarea = editTextareaRef.current
+                                                if (!textarea) return
+                                                const start = textarea.selectionStart
+                                                const end = textarea.selectionEnd
+                                                const selectedText = editingText.substring(start, end)
+                                                const formattedText = selectedText ? `_${selectedText}_` : '__'
+                                                const newText = editingText.substring(0, start) + formattedText + editingText.substring(end)
+                                                setEditingText(newText)
+                                                setTimeout(() => {
+                                                  textarea.selectionStart = textarea.selectionEnd = selectedText ? start + formattedText.length : start + 1
+                                                  textarea.focus()
+                                                }, 0)
+                                              }}
+                                            >
+                                              <Italic className="h-4 w-4" />
+                                            </Button>
+                                            <Button
+                                              size="icon"
+                                              variant="ghost"
+                                              className="h-7 w-7"
+                                              onClick={() => {
+                                                const textarea = editTextareaRef.current
+                                                if (!textarea) return
+                                                const start = textarea.selectionStart
+                                                const end = textarea.selectionEnd
+                                                const selectedText = editingText.substring(start, end)
+                                                const formattedText = selectedText ? `~${selectedText}~` : '~~'
+                                                const newText = editingText.substring(0, start) + formattedText + editingText.substring(end)
+                                                setEditingText(newText)
+                                                setTimeout(() => {
+                                                  textarea.selectionStart = textarea.selectionEnd = selectedText ? start + formattedText.length : start + 1
+                                                  textarea.focus()
+                                                }, 0)
+                                              }}
+                                            >
+                                              <Strikethrough className="h-4 w-4" />
+                                            </Button>
+                                          </div>
+                                        </PopoverContent>
+                                      </Popover>
+                                      
+                                      <Popover open={showEditEmoji} onOpenChange={setShowEditEmoji}>
+                                        <PopoverTrigger asChild>
+                                          <Button
+                                            size="icon"
+                                            variant="ghost"
+                                            className="h-7 w-7"
+                                            type="button"
+                                          >
+                                            <Smile className="h-4 w-4" />
+                                          </Button>
+                                        </PopoverTrigger>
+                                        <PopoverContent className="w-auto p-0" align="end">
+                                          <EmojiPicker
+                                            onEmojiClick={(emojiObject: any) => {
+                                              setEditingText(prev => prev + emojiObject.emoji)
+                                              setShowEditEmoji(false)
+                                              if (editTextareaRef.current) {
+                                                editTextareaRef.current.focus()
+                                              }
+                                            }}
+                                            width={320}
+                                            height={400}
+                                          />
+                                        </PopoverContent>
+                                      </Popover>
+                                    </div>
+                                  </div>
+                                  <div className="flex gap-1">
+                                    <Button
+                                      size="icon"
+                                      variant="default"
+                                      className="h-9 w-9"
+                                      onClick={handleUpdateMessage}
+                                      disabled={!editingText.trim() || isUpdating}
+                                    >
+                                      {isUpdating ? (
+                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                      ) : (
+                                        <Check className="h-4 w-4" />
+                                      )}
+                                    </Button>
+                                    <Button
+                                      size="icon"
+                                      variant="outline"
+                                      className="h-9 w-9"
+                                      onClick={() => {
+                                        cancelEdit()
+                                        setShowEditFormatting(false)
+                                        setShowEditEmoji(false)
+                                      }}
+                                      disabled={isUpdating}
+                                    >
+                                      <X className="h-4 w-4" />
+                                    </Button>
+                                  </div>
+                                </div>
+                              </div>
+                            ) : (
+                              <>
+                                {hasTextContent && (
+                                  <div
+                                    className={cn(
+                                      "px-3 py-2 rounded-lg text-sm break-words slack-message",
+                                      group.isCurrentUser 
+                                        ? "bg-blue-100 text-gray-900" 
+                                        : "bg-gray-100 text-gray-800"
+                                    )}
+                                    style={{ display: 'inline-block' }}
+                                    dangerouslySetInnerHTML={{ __html: formatSlackMessage(msg.text) }}
+                                  />
+                                )}
+                              </>
                             )}
                             {msg.files && msg.files.length > 0 && (
                               <FileList
@@ -1822,6 +2182,71 @@ export function SlackChatInterface({ groups, currentUserId, initialMessages, cac
           </div>
         )}
       </div>
+      
+      {/* Dialogue de confirmation de suppression */}
+      <AlertDialog open={!!deletingMessage} onOpenChange={() => setDeletingMessage(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Supprimer le message</AlertDialogTitle>
+            <AlertDialogDescription>
+              Voulez-vous vraiment supprimer ce message ? Cette opération est irréversible.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          
+          {deletingMessage && (
+            <div className="my-4 p-3 bg-gray-50 rounded-lg">
+              {/* Afficher le texte du message s'il existe */}
+              {(() => {
+                const { cleanText } = extractMessageSignature(deletingMessage.text || '')
+                return cleanText && cleanText.trim() ? (
+                  <div 
+                    className="text-sm text-gray-700 break-words slack-message"
+                    dangerouslySetInnerHTML={{ __html: formatSlackMessage(deletingMessage.text) }}
+                  />
+                ) : null
+              })()}
+              
+              {/* Afficher les fichiers s'il y en a */}
+              {deletingMessage.files && deletingMessage.files.length > 0 && (
+                <div className="mt-2">
+                  <FileList
+                    files={deletingMessage.files.map(file => ({
+                      id: file.id,
+                      name: file.name,
+                      mimetype: file.mimetype,
+                      url_private: file.url_private,
+                      url_private_download: file.url_private_download,
+                      permalink: file.permalink,
+                      title: file.title,
+                      filetype: file.filetype,
+                      size: file.size
+                    }))}
+                    isLocal={false}
+                  />
+                </div>
+              )}
+            </div>
+          )}
+          
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Annuler</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteMessage}
+              disabled={isDeleting}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              {isDeleting ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  Suppression...
+                </>
+              ) : (
+                'Supprimer'
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
