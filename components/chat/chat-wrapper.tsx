@@ -2,10 +2,8 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { NativeChatWrapper } from '@/components/chat/native-chat-wrapper'
-import { SlackChatInterface } from '@/components/slack-chat-interface'
 import { createClient } from '@/lib/supabase/client'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { MessageSquare, Hash } from 'lucide-react'
+import { Hash } from 'lucide-react'
 import { Spinner } from '@/components/ui/spinner'
 import { useChatCache } from '@/hooks/use-chat-cache'
 import { useUnreadCounts } from '@/hooks/use-unread-counts'
@@ -32,7 +30,6 @@ export function ChatWrapper({
   
   // Initialiser avec des valeurs par défaut
   const [selectedGroupId, setSelectedGroupId] = useState<string>('')
-  const [useNativeChat, setUseNativeChat] = useState(true)
   
   // Utiliser le hook de cache pour pouvoir le vider
   const { clearCache } = useChatCache()
@@ -50,7 +47,6 @@ export function ChatWrapper({
       // Vider aussi le localStorage et sessionStorage pour un nettoyage complet
       localStorage.removeItem('visitedGroups')
       localStorage.removeItem('selectedGroupId')
-      localStorage.removeItem('useNativeChat')
       sessionStorage.removeItem('chat-messages-cache')
       // Rafraîchir la page
       window.location.reload()
@@ -66,7 +62,6 @@ export function ChatWrapper({
   // Charger les préférences depuis localStorage après le montage
   useEffect(() => {
     const savedGroupId = localStorage.getItem('selectedGroupId')
-    const savedUseNative = localStorage.getItem('useNativeChat')
     
     // Utiliser le groupe sauvegardé s'il existe et est valide, sinon le premier groupe
     if (savedGroupId && groups.some(g => g.id === savedGroupId)) {
@@ -75,18 +70,11 @@ export function ChatWrapper({
       setSelectedGroupId(groups[0]?.id || '')
     }
     
-    if (savedUseNative !== null) {
-      setUseNativeChat(savedUseNative !== 'false')
-    }
-    
     setIsInitialized(true)
   }, [groups])
   
   const supabase = createClient()
-
-  // Vérifier si le groupe a une intégration Slack active
   const selectedGroup = groups.find(g => g.id === selectedGroupId)
-  const hasSlackIntegration = !!selectedGroup?.slack_channel_id
   
   // Sauvegarder le groupe sélectionné quand il change
   useEffect(() => {
@@ -95,12 +83,6 @@ export function ChatWrapper({
     }
   }, [selectedGroupId])
   
-  // Sauvegarder la préférence de chat quand elle change
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('useNativeChat', String(useNativeChat))
-    }
-  }, [useNativeChat])
   
   // Gérer les groupes visités
   const [visitedGroups, setVisitedGroups] = useState<Set<string>>(new Set())
@@ -195,43 +177,16 @@ export function ChatWrapper({
       <div className="flex-1 flex flex-col overflow-hidden">
         {selectedGroupId ? (
           <>
-            {/* Sélecteur de type de chat si Slack est disponible */}
-            {hasSlackIntegration && (
-              <div className="border-b bg-white px-4 py-2">
-                <Tabs value={useNativeChat ? 'native' : 'slack'} onValueChange={(v) => setUseNativeChat(v === 'native')}>
-                  <TabsList className="h-8">
-                    <TabsTrigger value="native" className="text-xs">
-                      <MessageSquare className="h-3 w-3 mr-1" />
-                      Chat Natif
-                    </TabsTrigger>
-                    <TabsTrigger value="slack" className="text-xs">
-                      <Hash className="h-3 w-3 mr-1" />
-                      Slack
-                    </TabsTrigger>
-                  </TabsList>
-                </Tabs>
-              </div>
-            )}
-
             {/* Interface de chat */}
             <div className="flex-1 overflow-hidden">
-              {useNativeChat ? (
-                <NativeChatWrapper
-                  groupId={selectedGroupId}
-                  groupName={selectedGroup?.name}
-                  currentUserId={currentUserId}
-                  className="h-full"
-                  markChannelAsRead={markAsRead}
-                  incrementUnreadCount={incrementUnreadCount}
-                />
-              ) : (
-                <SlackChatInterface
-                  groups={groups}
-                  currentUserId={currentUserId}
-                  initialMessages={initialMessages}
-                  cacheInfo={cacheInfo}
-                />
-              )}
+              <NativeChatWrapper
+                groupId={selectedGroupId}
+                groupName={selectedGroup?.name}
+                currentUserId={currentUserId}
+                className="h-full"
+                markChannelAsRead={markAsRead}
+                incrementUnreadCount={incrementUnreadCount}
+              />
             </div>
           </>
         ) : (
