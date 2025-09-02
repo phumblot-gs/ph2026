@@ -87,4 +87,13 @@ export interface SlackMessage {
     title?: string;
     filetype?: string;
   }>;
+  reactions?: Array<{
+    name: string;
+    users: string[];
+    count: number;
+  }>;
+  thread_ts?: string;
+  reply_count?: number;
+  reply_users?: string[];
+  latest_reply?: string;
 }

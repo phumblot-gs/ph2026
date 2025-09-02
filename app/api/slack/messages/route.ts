@@ -94,6 +94,15 @@ export async function GET(request: NextRequest) {
       if (authorSlackId) {
         slackUserIds.push(authorSlackId);
       }
+      
+      // Extraire aussi les IDs des utilisateurs dans les réactions
+      if (msg.reactions) {
+        msg.reactions.forEach(reaction => {
+          reaction.users.forEach(userId => {
+            slackUserIds.push(userId);
+          });
+        });
+      }
     });
     
     // Dédupliquer les IDs
@@ -107,6 +116,35 @@ export async function GET(request: NextRequest) {
     
     // Créer un map pour associer rapidement les IDs Slack aux membres
     const memberMap = new Map(members?.map(m => [m.slack_user_id, m]) || []);
+    
+    // Pour les IDs qui ne sont pas dans notre base (comme le bot), essayer de récupérer les infos depuis Slack
+    const missingIds = uniqueSlackUserIds.filter(id => !memberMap.has(id));
+    if (missingIds.length > 0) {
+      // Récupérer les infos depuis l'API Slack pour les utilisateurs manquants
+      for (const userId of missingIds) {
+        // Si c'est un bot ID (commence par B), on met un nom générique
+        if (userId.startsWith('B')) {
+          memberMap.set(userId, {
+            slack_user_id: userId,
+            first_name: 'Bot',
+            last_name: '',
+            photo_url: null
+          });
+        } else {
+          // Pour les vrais utilisateurs, essayer de trouver leurs infos dans les messages
+          const userMessage = messages.find(m => m.user === userId);
+          if (userMessage?.user_profile) {
+            const names = userMessage.user_profile.real_name?.split(' ') || [userMessage.user_profile.name];
+            memberMap.set(userId, {
+              slack_user_id: userId,
+              first_name: names[0] || userId,
+              last_name: names.slice(1).join(' ') || '',
+              photo_url: userMessage.user_profile.image_48 || null
+            });
+          }
+        }
+      }
+    }
     
     // Créer un map avec les infos Slack des utilisateurs des messages
     const slackUserInfoMap = new Map();
@@ -156,6 +194,13 @@ export async function GET(request: NextRequest) {
         text: replaceMentions(msg.text || ''), // Remplacer les mentions dans le texte
         // Formater correctement le timestamp
         timestamp: msg.ts, // Garder le timestamp Slack original
+        // Inclure les réactions si présentes
+        reactions: msg.reactions || [],
+        // Inclure les infos de thread si présentes
+        thread_ts: msg.thread_ts,
+        reply_count: msg.reply_count,
+        reply_users: msg.reply_users,
+        latest_reply: msg.latest_reply,
       };
     });
 

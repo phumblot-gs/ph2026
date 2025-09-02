@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { DashboardNav } from '@/components/dashboard-nav'
 import { DashboardSidebar, type DashboardView } from '@/components/dashboard-sidebar'
-import { SlackChatInterface } from '@/components/slack-chat-interface'
+import { ChatWrapper } from '@/components/chat/chat-wrapper'
 import { EventsView } from '@/components/events-view'
 
 interface DashboardClientProps {
@@ -52,7 +52,7 @@ export function DashboardClient({
         {/* Main Content Area */}
         <div className="flex-1 overflow-hidden">
             {currentView === 'slack' ? (
-              <SlackChatInterface
+              <ChatWrapper
                 groups={groups}
                 currentUserId={userId}
                 initialMessages={initialMessages}

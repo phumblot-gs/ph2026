@@ -1,7 +1,9 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { Send, Paperclip, Smile, Mic, Hash, Loader2, ChevronUp, Bold, Italic, Strikethrough, Link2, List, ListOrdered, Type, Square, MicOff, Edit2, Trash2, X, Check } from 'lucide-react'
+import { Send, Paperclip, Smile, Mic, Hash, ChevronUp, Bold, Italic, Strikethrough, Link2, List, ListOrdered, Type, Square, MicOff, Edit2, Trash2, X, Check, MessageCircle, SmilePlus } from 'lucide-react'
+import { Spinner } from '@/components/ui/spinner'
+import EmojiPicker from 'emoji-picker-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -23,7 +25,6 @@ import { cn } from '@/lib/utils'
 import { createClient } from '@/lib/supabase/client'
 import { formatSlackMessage, formatSlackMessagePreview, extractMessageSignature } from '@/lib/slack-formatter'
 import { slackRealtime } from '@/lib/slack/realtime'
-import EmojiPicker from 'emoji-picker-react'
 import { AudioPlayer } from '@/components/audio-player'
 import { FilePreview, FileList } from '@/components/file-preview'
 
@@ -61,6 +62,15 @@ interface SlackMessage {
     filetype?: string
     size?: number
   }>
+  reactions?: Array<{
+    name: string
+    users: string[]
+    count: number
+  }>
+  thread_ts?: string
+  reply_count?: number
+  reply_users?: string[]
+  latest_reply?: string
   isTemporary?: boolean // Marqueur pour les messages temporaires locaux
 }
 
@@ -98,6 +108,12 @@ export function SlackChatInterface({ groups, currentUserId, initialMessages, cac
   const [showMobileChannelList, setShowMobileChannelList] = useState(false)
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
   const [refreshingAfterSend, setRefreshingAfterSend] = useState(false)
+  const [replyingTo, setReplyingTo] = useState<SlackMessage | null>(null)
+  const [showReactionPicker, setShowReactionPicker] = useState<string | null>(null)
+  const [addingReaction, setAddingReaction] = useState(false)
+  const [removingReaction, setRemovingReaction] = useState(false)
+  const [membersMap, setMembersMap] = useState<Record<string, any>>({})
+  const [showThreads, setShowThreads] = useState<Record<string, boolean>>({})
   const [hasMoreMessages, setHasMoreMessages] = useState<Record<string, boolean>>({})
   const [loadingMoreMessages, setLoadingMoreMessages] = useState(false)
   const [hoveredMessage, setHoveredMessage] = useState<string | null>(null)
@@ -127,6 +143,152 @@ export function SlackChatInterface({ groups, currentUserId, initialMessages, cac
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null)
   const backgroundPollingRef = useRef<NodeJS.Timeout | null>(null)
   const supabase = createClient()
+  
+  // Fonction pour convertir les noms d'emoji Slack en emoji réels
+  const getEmojiFromName = (name: string): string => {
+    // Nettoyer le nom (enlever les : si présents)
+    const cleanName = name.replace(/^:/, '').replace(/:$/, '')
+    
+    // Map des emojis les plus courants
+    const emojiMap: Record<string, string> = {
+      // Réactions courantes
+      'thumbsup': '👍',
+      '+1': '👍',
+      'thumbsdown': '👎',
+      '-1': '👎',
+      'heart': '❤️',
+      'hearts': '💕',
+      'smile': '😊',
+      'smiley': '😃',
+      'grinning': '😀',
+      'laughing': '😂',
+      'joy': '😂',
+      'rofl': '🤣',
+      'fire': '🔥',
+      'clap': '👏',
+      'tada': '🎉',
+      'confetti_ball': '🎊',
+      'rocket': '🚀',
+      'eyes': '👀',
+      'thinking_face': '🤔',
+      'thinking': '🤔',
+      'white_check_mark': '✅',
+      'heavy_check_mark': '✔️',
+      'x': '❌',
+      'pray': '🙏',
+      'raised_hands': '🙌',
+      'muscle': '💪',
+      'ok_hand': '👌',
+      'ok': '👌',
+      'wave': '👋',
+      'star': '⭐',
+      'star2': '🌟',
+      'sparkles': '✨',
+      'boom': '💥',
+      'zap': '⚡',
+      'bulb': '💡',
+      'bell': '🔔',
+      'pushpin': '📌',
+      'memo': '📝',
+      'warning': '⚠️',
+      'question': '❓',
+      'exclamation': '❗',
+      '100': '💯',
+      
+      // Emojis de visage
+      'grin': '😁',
+      'wink': '😉',
+      'blush': '😊',
+      'slightly_smiling_face': '🙂',
+      'upside_down_face': '🙃',
+      'relaxed': '☺️',
+      'yum': '😋',
+      'relieved': '😌',
+      'heart_eyes': '😍',
+      'kissing_heart': '😘',
+      'stuck_out_tongue': '😛',
+      'stuck_out_tongue_winking_eye': '😜',
+      'stuck_out_tongue_closed_eyes': '😝',
+      'neutral_face': '😐',
+      'expressionless': '😑',
+      'no_mouth': '😶',
+      'smirk': '😏',
+      'persevere': '😣',
+      'disappointed_relieved': '😥',
+      'open_mouth': '😮',
+      'zipper_mouth_face': '🤐',
+      'hushed': '😯',
+      'sleepy': '😪',
+      'tired_face': '😫',
+      'sleeping': '😴',
+      'nerd_face': '🤓',
+      'sunglasses': '😎',
+      'confused': '😕',
+      'worried': '😟',
+      'slightly_frowning_face': '🙁',
+      'frowning_face': '☹️',
+      'cry': '😢',
+      'sob': '😭',
+      'scream': '😱',
+      'astonished': '😲',
+      'flushed': '😳',
+      'crazy_face': '🤪',
+      'dizzy_face': '😵',
+      'rage': '😡',
+      'angry': '😠',
+      'sweat_smile': '😅',
+      'sweat': '😓',
+      'weary': '😩',
+      'face_with_rolling_eyes': '🙄',
+      'rolling_on_the_floor_laughing': '🤣',
+      
+      // Mains et gestes
+      'point_up': '☝️',
+      'point_down': '👇',
+      'point_left': '👈',
+      'point_right': '👉',
+      'facepunch': '👊',
+      'fist': '✊',
+      'v': '✌️',
+      'crossed_fingers': '🤞',
+      'hand': '✋',
+      'raised_hand': '✋',
+      
+      // Objets
+      'gift': '🎁',
+      'trophy': '🏆',
+      'medal_sports': '🏅',
+      'medal_military': '🎖️',
+      'crown': '👑',
+      'money_bag': '💰',
+      'gem': '💎',
+      
+      // Symboles
+      'red_circle': '🔴',
+      'blue_circle': '🔵',
+      'white_circle': '⚪',
+      'black_circle': '⚫',
+      'green_circle': '🟢',
+      'yellow_circle': '🟡',
+      'purple_circle': '🟣',
+      'orange_circle': '🟠',
+      'brown_circle': '🟤'
+    }
+    
+    // Si on trouve l'emoji dans le map, le retourner
+    if (emojiMap[cleanName]) {
+      return emojiMap[cleanName]
+    }
+    
+    // Sinon, essayer de voir si c'est déjà un emoji
+    // Si c'est un seul caractère emoji, le retourner tel quel
+    if (cleanName.length <= 2 && /\p{Emoji}/u.test(cleanName)) {
+      return cleanName
+    }
+    
+    // Sinon retourner le nom avec les :
+    return `:${cleanName}:`
+  }
 
   // Cleanup recording on unmount
   useEffect(() => {
@@ -479,6 +641,11 @@ export function SlackChatInterface({ groups, currentUserId, initialMessages, cac
         const data = await response.json()
         const channelMessages = data.messages || []
         
+        // Stocker la map des membres
+        if (data.membersMap) {
+          setMembersMap(data.membersMap)
+        }
+        
         if (before) {
           // Prepend older messages et garder l'ordre correct
           setMessages(prev => {
@@ -611,6 +778,11 @@ export function SlackChatInterface({ groups, currentUserId, initialMessages, cac
       if (response.ok) {
         const data = await response.json()
         const channelMessages = data.messages || []
+        
+        // Stocker la map des membres
+        if (data.membersMap) {
+          setMembersMap(data.membersMap)
+        }
         
         // Only update messages if we got new data
         if (channelMessages.length > 0) {
@@ -954,6 +1126,11 @@ export function SlackChatInterface({ groups, currentUserId, initialMessages, cac
 
   const sendMessage = async () => {
     if ((!inputMessage.trim() && selectedFiles.length === 0) || !selectedChannel?.slack_channel_id || sendingMessage) return
+    
+    // Si on répond à un message, utiliser la fonction de réponse
+    if (replyingTo) {
+      return handleReplyToMessage()
+    }
 
     setSendingMessage(true)
     setSendError(null)
@@ -1071,6 +1248,114 @@ export function SlackChatInterface({ groups, currentUserId, initialMessages, cac
     // Focus back to input
     if (inputRef.current) {
       inputRef.current.focus()
+    }
+  }
+
+  const handleAddReaction = async (messageTs: string, emoji: string) => {
+    if (!selectedChannel || addingReaction) return
+    
+    setAddingReaction(true)
+    try {
+      const response = await fetch('/api/slack/add-reaction', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          channel: selectedChannel.slack_channel_id,
+          timestamp: messageTs,
+          emoji: emoji.replace(/:/g, '') // Enlever les : autour de l'emoji
+        })
+      })
+      
+      if (!response.ok) {
+        const error = await response.json()
+        
+        // Si l'erreur est "already_reacted", on essaye de retirer la réaction
+        if (error.error === 'Vous avez déjà ajouté cette réaction') {
+          // Retirer la réaction à la place
+          await handleRemoveReaction(messageTs, emoji.replace(/:/g, ''))
+          return
+        }
+        
+        throw new Error(error.error || 'Erreur lors de l\'ajout de la réaction')
+      }
+      
+      // Rafraîchir les messages pour voir la nouvelle réaction
+      await loadChannelMessages(selectedChannel.id, selectedChannel.slack_channel_id || '', true)
+    } catch (error: any) {
+      console.error('Erreur ajout réaction:', error)
+      setSendError(error.message || 'Erreur lors de l\'ajout de la réaction')
+    } finally {
+      setAddingReaction(false)
+      setShowReactionPicker(null)
+    }
+  }
+
+  const handleRemoveReaction = async (messageTs: string, emoji: string) => {
+    if (!selectedChannel || removingReaction) return
+    
+    setRemovingReaction(true)
+    try {
+      const response = await fetch('/api/slack/remove-reaction', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          channel: selectedChannel.slack_channel_id,
+          timestamp: messageTs,
+          emoji: emoji
+        })
+      })
+      
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Erreur lors de la suppression de la réaction')
+      }
+      
+      // Rafraîchir les messages pour voir la réaction supprimée
+      await loadChannelMessages(selectedChannel.id, selectedChannel.slack_channel_id || '', true)
+    } catch (error: any) {
+      console.error('Erreur suppression réaction:', error)
+      setSendError(error.message || 'Erreur lors de la suppression de la réaction')
+    } finally {
+      setRemovingReaction(false)
+    }
+  }
+
+  const handleReplyToMessage = async () => {
+    if (!replyingTo || !selectedChannel || !inputMessage.trim()) return
+    
+    const messageToSend = inputMessage.trim()
+    setInputMessage('')
+    setSendError(null)
+    setSendingMessage(true)
+    
+    try {
+      const response = await fetch('/api/slack/reply-message', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          channel: selectedChannel.slack_channel_id,
+          text: messageToSend,
+          thread_ts: replyingTo.thread_ts || replyingTo.ts || replyingTo.timestamp
+        })
+      })
+      
+      const data = await response.json()
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Erreur lors de l\'envoi de la réponse')
+      }
+      
+      setReplyingTo(null)
+      
+      // Rafraîchir les messages après un court délai
+      setTimeout(async () => {
+        await loadChannelMessages(selectedChannel.id, selectedChannel.slack_channel_id || '', true)
+      }, 1500)
+    } catch (error: any) {
+      console.error('Erreur envoi réponse:', error)
+      setSendError(error.message || 'Erreur lors de l\'envoi de la réponse')
+    } finally {
+      setSendingMessage(false)
     }
   }
 
@@ -1435,7 +1720,7 @@ export function SlackChatInterface({ groups, currentUserId, initialMessages, cac
         {newMessageNotification && (
           <div className="absolute top-20 left-1/2 transform -translate-x-1/2 z-50">
             <div className="bg-blue-600 text-white px-4 py-2 rounded-lg shadow-lg flex items-center gap-2">
-              <Loader2 className="h-4 w-4 animate-spin" />
+              <Spinner size="sm" className="h-4 w-4" />
               <span className="text-sm">{newMessageNotification}</span>
             </div>
           </div>
@@ -1445,7 +1730,7 @@ export function SlackChatInterface({ groups, currentUserId, initialMessages, cac
         <div className="flex-1 flex flex-col overflow-hidden">
           {selectedChannel && loading[selectedChannel.id] ? (
             <div className="flex-1 flex items-center justify-center">
-              <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+              <Spinner size="md" className="text-gray-400" />
             </div>
           ) : selectedChannel && messages[selectedChannel.id] && messages[selectedChannel.id].length > 0 ? (
             <div 
@@ -1483,7 +1768,7 @@ export function SlackChatInterface({ groups, currentUserId, initialMessages, cac
                       >
                         {loadingMoreMessages ? (
                           <>
-                            <Loader2 className="h-4 w-4 animate-spin" />
+                            <Spinner size="sm" className="h-4 w-4" />
                             Chargement...
                           </>
                         ) : (
@@ -1511,13 +1796,10 @@ export function SlackChatInterface({ groups, currentUserId, initialMessages, cac
                       <AvatarFallback>{group.initials}</AvatarFallback>
                     </Avatar>
                   )}
-                  <div className={cn(
-                    "max-w-[50%]",
-                    group.isCurrentUser && "flex flex-col items-end"
-                  )}>
+                  <div className="flex-1">
                     <div className={cn(
                       "flex items-baseline gap-2 mb-1",
-                      group.isCurrentUser && "flex-row-reverse"
+                      group.isCurrentUser ? "justify-end" : "justify-start"
                     )}>
                       <span className="font-semibold text-sm">
                         {group.isCurrentUser ? "Vous" : group.displayName}
@@ -1526,10 +1808,7 @@ export function SlackChatInterface({ groups, currentUserId, initialMessages, cac
                         {formatTimestamp(group.timestamp)}
                       </span>
                     </div>
-                    <div className={cn(
-                      "flex flex-col gap-1 items-start",
-                      group.isCurrentUser && "items-end"
-                    )}>
+                    <div className="flex flex-col gap-1">
                       {group.messages.map((msg, msgIndex) => {
                         
                         // Vérifier si le message contient un fichier audio (Slack les marque souvent comme video/mp4)
@@ -1577,13 +1856,16 @@ export function SlackChatInterface({ groups, currentUserId, initialMessages, cac
                         return (
                           <div 
                             key={msgIndex} 
-                            className="relative flex flex-col gap-2"
-                            onMouseEnter={() => canEditOrDelete && setHoveredMessage(messageKey)}
+                            className={cn(
+                              "flex gap-2 items-start",
+                              group.isCurrentUser ? "justify-end" : "justify-start"
+                            )}
+                            onMouseEnter={() => setHoveredMessage(messageKey)}
                             onMouseLeave={() => setHoveredMessage(null)}
                           >
-                            {/* Boutons d'action au survol */}
-                            {canEditOrDelete && isHovered && !isEditing && (
-                              <div className="absolute -top-8 right-0 flex gap-1 bg-white rounded-lg shadow-md border p-1 z-10">
+                            {/* Boutons à gauche pour les messages de l'utilisateur */}
+                            {canEditOrDelete && isHovered && !isEditing && group.isCurrentUser && (
+                              <div className="flex items-center gap-1 p-1">
                                 {hasTextContent && !msg.files?.length && (
                                   <Button
                                     size="icon"
@@ -1607,8 +1889,10 @@ export function SlackChatInterface({ groups, currentUserId, initialMessages, cac
                               </div>
                             )}
                             
-                            {/* Mode édition ou affichage normal */}
-                            {isEditing ? (
+                            {/* Contenu du message avec max 70% de largeur */}
+                            <div className="flex flex-col max-w-[70%]">
+                              {/* Mode édition ou affichage normal */}
+                              {isEditing ? (
                               <div className="flex flex-col gap-2">
                                 <div className="flex gap-2 items-end">
                                   <div className="w-[500px] relative">
@@ -1779,15 +2063,13 @@ export function SlackChatInterface({ groups, currentUserId, initialMessages, cac
                                         </PopoverTrigger>
                                         <PopoverContent className="w-auto p-0" align="end">
                                           <EmojiPicker
-                                            onEmojiClick={(emojiObject: any) => {
-                                              setEditingText(prev => prev + emojiObject.emoji)
+                                            onEmojiClick={(emojiData) => {
+                                              setEditingText(prev => prev + emojiData.emoji)
                                               setShowEditEmoji(false)
                                               if (editTextareaRef.current) {
                                                 editTextareaRef.current.focus()
                                               }
                                             }}
-                                            width={320}
-                                            height={400}
                                           />
                                         </PopoverContent>
                                       </Popover>
@@ -1802,7 +2084,7 @@ export function SlackChatInterface({ groups, currentUserId, initialMessages, cac
                                       disabled={!editingText.trim() || isUpdating}
                                     >
                                       {isUpdating ? (
-                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                        <Spinner size="sm" className="h-4 w-4" />
                                       ) : (
                                         <Check className="h-4 w-4" />
                                       )}
@@ -1828,12 +2110,11 @@ export function SlackChatInterface({ groups, currentUserId, initialMessages, cac
                                 {hasTextContent && (
                                   <div
                                     className={cn(
-                                      "px-3 py-2 rounded-lg text-sm break-words slack-message",
+                                      "px-3 py-2 rounded-lg text-sm break-words slack-message w-fit",
                                       group.isCurrentUser 
                                         ? "bg-blue-100 text-gray-900" 
                                         : "bg-gray-100 text-gray-800"
                                     )}
-                                    style={{ display: 'inline-block' }}
                                     dangerouslySetInnerHTML={{ __html: formatSlackMessage(msg.text) }}
                                   />
                                 )}
@@ -1858,6 +2139,171 @@ export function SlackChatInterface({ groups, currentUserId, initialMessages, cac
                                 )}
                               />
                             )}
+                            
+                              {/* Réactions sous le message */}
+                              {msg.reactions && msg.reactions.length > 0 && (
+                                <div className="flex flex-wrap gap-1 mt-1">
+                                  {msg.reactions.map((reaction) => {
+                                    const userHasReacted = reaction.users.includes(currentUserSlackId || '')
+                                    const reactionUsers = reaction.users.map(userId => {
+                                      // Chercher dans le membersMap
+                                      if (membersMap && membersMap[userId]) {
+                                        const member = membersMap[userId]
+                                        return `${member.first_name} ${member.last_name}`
+                                      }
+                                      // Si pas trouvé, retourner juste l'ID (ou "Bot" si c'est le bot)
+                                      return userId.startsWith('B') ? 'Bot' : userId
+                                    })
+                                    
+                                    return (
+                                      <Popover key={reaction.name}>
+                                        <PopoverTrigger asChild>
+                                          <Button
+                                            variant={userHasReacted ? "default" : "outline"}
+                                            size="sm"
+                                            className={cn(
+                                              "h-6 px-2 text-xs cursor-pointer",
+                                              userHasReacted && "bg-blue-100 hover:bg-blue-200 text-blue-800 border-blue-300"
+                                            )}
+                                          >
+                                            <span className="mr-1">{getEmojiFromName(reaction.name)}</span>
+                                            <span>{reaction.count}</span>
+                                          </Button>
+                                        </PopoverTrigger>
+                                        <PopoverContent className="w-auto p-2" side="top">
+                                          <div className="text-xs">
+                                            {reactionUsers.join(', ')}
+                                          </div>
+                                        </PopoverContent>
+                                      </Popover>
+                                    )
+                                  })}
+                                </div>
+                              )}
+                              
+                              {/* Nombre de réponses */}
+                              {msg.reply_count && msg.reply_count > 0 && (
+                                <div className="text-xs text-gray-500 mt-1">
+                                  {msg.reply_count} réponse{msg.reply_count > 1 ? 's' : ''}
+                                </div>
+                              )}
+                            </div>
+                            
+                            {/* Boutons à droite pour les messages des autres */}
+                            {!group.isCurrentUser && isHovered && !isEditing && (
+                              <div className="flex items-center gap-1 p-1">
+                                <Popover open={showReactionPicker === (msg.ts || msg.timestamp)} onOpenChange={(open) => setShowReactionPicker(open ? (msg.ts || msg.timestamp) : null)}>
+                                  <PopoverTrigger asChild>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-7 w-7"
+                                      title="Ajouter une réaction"
+                                    >
+                                      <SmilePlus className="h-4 w-4" />
+                                    </Button>
+                                  </PopoverTrigger>
+                                  <PopoverContent className="w-auto p-0" align="start" side="top">
+                                    <div className="p-3 grid grid-cols-8 gap-1 max-h-[400px] overflow-y-auto">
+                                      {/* Liste d'emojis Slack valides */}
+                                      {[
+                                        { emoji: '👍', name: 'thumbsup' },
+                                        { emoji: '👎', name: 'thumbsdown' },
+                                        { emoji: '❤️', name: 'heart' },
+                                        { emoji: '😂', name: 'joy' },
+                                        { emoji: '🔥', name: 'fire' },
+                                        { emoji: '👏', name: 'clap' },
+                                        { emoji: '🎉', name: 'tada' },
+                                        { emoji: '🚀', name: 'rocket' },
+                                        { emoji: '👀', name: 'eyes' },
+                                        { emoji: '🤔', name: 'thinking_face' },
+                                        { emoji: '✅', name: 'white_check_mark' },
+                                        { emoji: '❌', name: 'x' },
+                                        { emoji: '🙏', name: 'pray' },
+                                        { emoji: '💪', name: 'muscle' },
+                                        { emoji: '👌', name: 'ok_hand' },
+                                        { emoji: '😊', name: 'blush' },
+                                        { emoji: '😃', name: 'smiley' },
+                                        { emoji: '😁', name: 'grin' },
+                                        { emoji: '😄', name: 'smile' },
+                                        { emoji: '😍', name: 'heart_eyes' },
+                                        { emoji: '😘', name: 'kissing_heart' },
+                                        { emoji: '😉', name: 'wink' },
+                                        { emoji: '😎', name: 'sunglasses' },
+                                        { emoji: '😢', name: 'cry' },
+                                        { emoji: '😭', name: 'sob' },
+                                        { emoji: '😱', name: 'scream' },
+                                        { emoji: '😴', name: 'sleeping' },
+                                        { emoji: '🤓', name: 'nerd_face' },
+                                        { emoji: '😡', name: 'rage' },
+                                        { emoji: '🙌', name: 'raised_hands' },
+                                        { emoji: '✋', name: 'raised_hand' },
+                                        { emoji: '👋', name: 'wave' },
+                                        { emoji: '✊', name: 'fist' },
+                                        { emoji: '✌️', name: 'v' },
+                                        { emoji: '🤞', name: 'crossed_fingers' },
+                                        { emoji: '☝️', name: 'point_up' },
+                                        { emoji: '👇', name: 'point_down' },
+                                        { emoji: '👈', name: 'point_left' },
+                                        { emoji: '👉', name: 'point_right' },
+                                        { emoji: '⭐', name: 'star' },
+                                        { emoji: '✨', name: 'sparkles' },
+                                        { emoji: '💥', name: 'boom' },
+                                        { emoji: '💯', name: '100' },
+                                        { emoji: '🎁', name: 'gift' },
+                                        { emoji: '🏆', name: 'trophy' },
+                                        { emoji: '🥇', name: 'first_place_medal' },
+                                        { emoji: '🥈', name: 'second_place_medal' },
+                                        { emoji: '🥉', name: 'third_place_medal' },
+                                        { emoji: '⚡', name: 'zap' },
+                                        { emoji: '💡', name: 'bulb' },
+                                        { emoji: '🔔', name: 'bell' },
+                                        { emoji: '📌', name: 'pushpin' },
+                                        { emoji: '📝', name: 'memo' },
+                                        { emoji: '⚠️', name: 'warning' },
+                                        { emoji: '❓', name: 'question' },
+                                        { emoji: '❗', name: 'exclamation' },
+                                        { emoji: '➕', name: 'heavy_plus_sign' },
+                                        { emoji: '➖', name: 'heavy_minus_sign' },
+                                        { emoji: '✔️', name: 'heavy_check_mark' },
+                                        { emoji: '🔴', name: 'red_circle' },
+                                        { emoji: '🔵', name: 'large_blue_circle' },
+                                        { emoji: '⚪', name: 'white_circle' },
+                                        { emoji: '⚫', name: 'black_circle' },
+                                        { emoji: '🟢', name: 'green_circle' },
+                                        { emoji: '🟡', name: 'yellow_circle' },
+                                        { emoji: '🟣', name: 'purple_circle' },
+                                        { emoji: '🟠', name: 'orange_circle' }
+                                      ].map(({ emoji, name }) => (
+                                        <Button
+                                          key={name}
+                                          variant="ghost"
+                                          size="sm"
+                                          className="h-8 w-8 p-0 hover:bg-gray-100"
+                                          onClick={() => {
+                                            handleAddReaction(msg.ts || msg.timestamp, name)
+                                            setShowReactionPicker(null)
+                                          }}
+                                          title={`:${name}:`}
+                                        >
+                                          <span className="text-lg">{emoji}</span>
+                                        </Button>
+                                      ))}
+                                    </div>
+                                  </PopoverContent>
+                                </Popover>
+                                
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-7 w-7"
+                                  onClick={() => setReplyingTo(msg)}
+                                  title="Répondre"
+                                >
+                                  <MessageCircle className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            )}
                           </div>
                         )
                       })}
@@ -1868,7 +2314,7 @@ export function SlackChatInterface({ groups, currentUserId, initialMessages, cac
                   <div ref={scrollRef} />
                   {refreshingAfterSend && (
                     <div className="flex items-center justify-center gap-1.5 text-xs text-gray-400 mt-2 opacity-60">
-                      <Loader2 className="h-3 w-3 animate-spin" />
+                      <Spinner size="sm" className="h-3 w-3" />
                       <span>Synchronisation...</span>
                     </div>
                   )}
@@ -1891,6 +2337,32 @@ export function SlackChatInterface({ groups, currentUserId, initialMessages, cac
                   {sendError}
                 </AlertDescription>
               </Alert>
+            )}
+            
+            {/* Indicateur de réponse */}
+            {replyingTo && (
+              <div className="mb-2 p-2 bg-blue-50 border border-blue-200 rounded-lg flex items-start justify-between">
+                <div className="flex-1">
+                  <div className="text-xs text-blue-700 mb-1 flex items-center">
+                    <MessageCircle className="h-3 w-3 mr-1" />
+                    Répondre à {replyingTo.realAuthor?.first_name || replyingTo.member?.first_name || 'un message'}
+                  </div>
+                  <div className="text-sm text-gray-600 line-clamp-2">
+                    {(() => {
+                      const { cleanText } = extractMessageSignature(replyingTo.text || '')
+                      return cleanText || '(message sans texte)'
+                    })()}
+                  </div>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 w-6 p-0 ml-2"
+                  onClick={() => setReplyingTo(null)}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
             )}
             {selectedFiles.length > 0 && (
               <div className="mb-2">
@@ -2114,9 +2586,9 @@ export function SlackChatInterface({ groups, currentUserId, initialMessages, cac
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="end">
                   <EmojiPicker
-                    onEmojiClick={handleEmojiClick}
-                    width={350}
-                    height={400}
+                    onEmojiClick={(emojiData) => {
+                      handleEmojiClick(emojiData)
+                    }}
                   />
                 </PopoverContent>
               </Popover>
@@ -2161,7 +2633,7 @@ export function SlackChatInterface({ groups, currentUserId, initialMessages, cac
                 disabled={(!inputMessage.trim() && selectedFiles.length === 0) || sendingMessage}
               >
                 {sendingMessage ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <Spinner size="sm" className="h-4 w-4" />
                 ) : (
                   <Send className="h-4 w-4" />
                 )}
@@ -2237,7 +2709,7 @@ export function SlackChatInterface({ groups, currentUserId, initialMessages, cac
             >
               {isDeleting ? (
                 <>
-                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  <Spinner size="sm" className="h-4 w-4 mr-2 text-primary-foreground" />
                   Suppression...
                 </>
               ) : (
