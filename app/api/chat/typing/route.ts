@@ -148,7 +148,7 @@ export async function GET(request: NextRequest) {
     }
     
     // Récupérer les infos des membres si on a des utilisateurs
-    let formattedUsers = []
+    let formattedUsers: any[] = []
     if (typingUsers && typingUsers.length > 0) {
       const userIds = typingUsers.map(tu => tu.user_id)
       const { data: members } = await supabase

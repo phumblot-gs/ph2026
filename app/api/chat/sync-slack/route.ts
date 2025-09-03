@@ -83,7 +83,7 @@ export async function POST(request: NextRequest) {
     
     for (const slackUserId of slackUserIds) {
       try {
-        const userInfo = await slack.users.info({ user: slackUserId })
+        const userInfo = await slack.users.info({ user: slackUserId! })
         if (userInfo.user) {
           slackUsers.set(slackUserId, userInfo.user)
         }
@@ -254,7 +254,7 @@ export async function POST(request: NextRequest) {
           is_from_slack: true,
           slack_sync_status: 'synced',
           thread_ts: slackMessage.thread_ts || null,
-          created_at: new Date(parseFloat(slackMessage.ts) * 1000).toISOString(),
+          created_at: new Date(parseFloat(slackMessage.ts!) * 1000).toISOString(),
           metadata: {
             slack_message: slackMessage
           }
@@ -297,7 +297,7 @@ export async function POST(request: NextRequest) {
         
         if (localMessage) {
           for (const reaction of slackMessage.reactions) {
-            for (const slackUserId of reaction.users) {
+            for (const slackUserId of reaction.users || []) {
               const localUserId = slackToLocalUser.get(slackUserId)
               if (localUserId) {
                 // Vérifier si la réaction existe déjà

@@ -236,7 +236,7 @@ export async function DELETE(request: NextRequest) {
       .eq('id', fileId)
       .single()
     
-    if (!file || file.message?.user_id !== user.id) {
+    if (!file || (file.message as any)?.user_id !== user.id) {
       return NextResponse.json({ error: 'Fichier non trouvé ou non autorisé' }, { status: 403 })
     }
     

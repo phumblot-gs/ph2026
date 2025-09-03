@@ -648,23 +648,24 @@ async function syncMessageToSlack(message: any, channelId: string, files: any[] 
           
           // Récupérer l'ID du fichier - la structure peut être différente
           let fileId: string | undefined
+          const result = uploadResult as any
           
           // Option 1: uploadResult.file (singulier)
-          if (uploadResult.file?.id) {
-            fileId = uploadResult.file.id
+          if (result.file?.id) {
+            fileId = result.file.id
           }
           // Option 2: uploadResult.files (pluriel normal)
-          else if (uploadResult.files && uploadResult.files[0]?.id) {
-            fileId = uploadResult.files[0].id
+          else if (result.files && result.files[0]?.id) {
+            fileId = result.files[0].id
           }
           // Option 3: Structure imbriquée bizarre de uploadV2
-          else if (uploadResult.files && uploadResult.files[0]?.files && uploadResult.files[0].files[0]?.id) {
-            fileId = uploadResult.files[0].files[0].id
+          else if (result.files && result.files[0]?.files && result.files[0].files[0]?.id) {
+            fileId = result.files[0].files[0].id
           }
           // Option 4: Vérifier d'autres structures possibles
           else {
-            for (const key of Object.keys(uploadResult)) {
-              const value = uploadResult[key]
+            for (const key of Object.keys(result)) {
+              const value = result[key]
               if (typeof value === 'object' && value !== null) {
               } else {
               }

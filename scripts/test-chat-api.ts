@@ -91,7 +91,7 @@ async function apiRequest(
   const data = await response.json()
   
   if (!response.ok) {
-    throw new Error(data.error || `HTTP ${response.status}`)
+    throw new Error((data as any).error || `HTTP ${response.status}`)
   }
   
   return data

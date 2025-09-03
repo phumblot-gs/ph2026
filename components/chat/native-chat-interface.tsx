@@ -835,56 +835,6 @@ function NativeChatInterface({
                     file={file}
                   />
                 )
-                
-                if (file.mimetype.includes('sheet') || file.mimetype.includes('excel')) {
-                  fileIcon = <svg className="w-5 h-5 text-green-600" fill="currentColor" viewBox="0 0 20 20">
-                    <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z"/>
-                    <path fillRule="evenodd" d="M4 5a2 2 0 012-2 1 1 0 000 2H6a2 2 0 00-2 2v6a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-1a1 1 0 100-2h1a4 4 0 014 4v6a4 4 0 01-4 4H6a4 4 0 01-4-4V7a4 4 0 014-4z" clipRule="evenodd"/>
-                  </svg>
-                  fileType = 'Tableur'
-                } else if (file.mimetype.includes('word') || file.mimetype.includes('document')) {
-                  fileIcon = <svg className="w-5 h-5 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M4 4a2 2 0 012-2h8l4 4v10a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 0v12h8V8h-4V4H6z" clipRule="evenodd"/>
-                  </svg>
-                  fileType = 'Document'
-                } else if (file.mimetype.includes('presentation') || file.mimetype.includes('powerpoint')) {
-                  fileIcon = <svg className="w-5 h-5 text-orange-600" fill="currentColor" viewBox="0 0 20 20">
-                    <path d="M10 12a2 2 0 100-4 2 2 0 000 4z"/>
-                    <path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd"/>
-                  </svg>
-                  fileType = 'Pr\u00e9sentation'
-                } else if (file.mimetype.includes('zip') || file.mimetype.includes('compressed')) {
-                  fileIcon = <svg className="w-5 h-5 text-yellow-600" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M6 2a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2V7.414A2 2 0 0015.414 6L12 2.586A2 2 0 0010.586 2H6zm5 6a1 1 0 10-2 0v3.586l-1.293-1.293a1 1 0 10-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 00-1.414-1.414L11 11.586V8z" clipRule="evenodd"/>
-                  </svg>
-                  fileType = 'Archive'
-                }
-                
-                return (
-                  <div key={file.id} className="mt-2 inline-block">
-                    <div className="flex items-start gap-3 p-3 bg-[#f9f9f9] rounded-lg border border-gray-300 hover:border-gray-400 transition-colors max-w-md">
-                      <div className="flex-shrink-0 w-10 h-10 bg-gray-100 rounded border border-gray-200 flex items-center justify-center text-gray-500">
-                        {fileIcon}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <a
-                          href={`/api/chat/upload?path=${file.storage_path}`}
-                          download={file.original_name}
-                          className="text-sm font-medium text-[#1d1c1d] hover:text-blue-600 hover:underline block truncate"
-                        >
-                          {file.original_name || file.name}
-                        </a>
-                        <div className="flex items-center gap-2 mt-0.5">
-                          <span className="text-[11px] text-gray-500">{fileType}</span>
-                          <span className="text-[11px] text-gray-400">•</span>
-                          <span className="text-[11px] text-gray-400">
-                            {Math.round(file.size / 1024)}KB
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )
               })}
             </div>
           )}

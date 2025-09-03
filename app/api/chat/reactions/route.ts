@@ -134,10 +134,11 @@ export async function DELETE(request: NextRequest) {
     }
     
     // Synchroniser avec Slack si le message est synchronisé
-    if (reaction.message?.slack_ts && reaction.message?.slack_channel_id) {
+    const message = reaction.message as any
+    if (message?.slack_ts && message?.slack_channel_id) {
       syncReactionToSlack(
-        reaction.message.slack_channel_id,
-        reaction.message.slack_ts,
+        message.slack_channel_id,
+        message.slack_ts,
         reaction.emoji_name || emoji,
         'remove'
       ).catch(err => console.error('Erreur sync suppression réaction Slack:', err))

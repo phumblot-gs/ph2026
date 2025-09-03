@@ -69,7 +69,7 @@ export async function GET(request: NextRequest) {
         
         return {
           group_id: ug.group_id,
-          group_name: ug.group?.name,
+          group_name: (ug.group as any)?.name,
           unread_count: unreadCount,
           last_read_at: readStatus?.last_read_at || null
         }

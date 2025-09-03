@@ -102,7 +102,7 @@ export function useNativeChat(groupId: string | null, shouldIncrementUnread?: ()
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const currentUserIdRef = useRef<string | null>(null)
   const syncIntervalRef = useRef<NodeJS.Timeout | null>(null)
-  const loadMessagesRef = useRef<() => void>()
+  const loadMessagesRef = useRef<(groupId: string) => void>(() => {})
   const processedMessagesRef = useRef<Set<string>>(new Set()) // Pour éviter les doublons d'incrémentation
   const localReactionChangesRef = useRef<Set<string>>(new Set()) // Pour tracker les changements locaux de réactions
   const pendingLocalChangesRef = useRef<Map<string, any>>(new Map()) // Pour stocker les changements locaux en attente
@@ -187,7 +187,7 @@ export function useNativeChat(groupId: string | null, shouldIncrementUnread?: ()
         
         // Si on recharge dans les 2 secondes après un changement local, réappliquer les changements
         if (timeSinceLastLoad < 2000 && pendingLocalChangesRef.current.size > 0) {
-          const updatedMessages = messages.map(msg => {
+          const updatedMessages = messages.map((msg: ChatMessage) => {
             const pendingChange = pendingLocalChangesRef.current.get(msg.id)
             if (pendingChange) {
               return { ...msg, reactions: pendingChange.reactions }
@@ -598,7 +598,7 @@ export function useNativeChat(groupId: string | null, shouldIncrementUnread?: ()
               }
             }
             return reaction // Pas de copie si pas modifiée
-          }).filter(Boolean) // Enlever les réactions null
+          }).filter(Boolean) as ChatReaction[] // Enlever les réactions null
           
           // Créer un NOUVEAU message avec les réactions mises à jour
           const updatedMsg = {
@@ -712,7 +712,7 @@ export function useNativeChat(groupId: string | null, shouldIncrementUnread?: ()
               return msg
             }
             // Créer un NOUVEAU tableau de réactions avec de NOUVEAUX objets
-            const updatedReactions = msg.reactions.map(reaction => {
+            const updatedReactions = msg.reactions?.map(reaction => {
               if (reaction.emoji === emoji) {
                 const newUsers = [...reaction.users, { 
                   id: currentUserId, 
@@ -735,7 +735,7 @@ export function useNativeChat(groupId: string | null, shouldIncrementUnread?: ()
             // Créer un NOUVEAU message avec les nouvelles réactions
             const updatedMsg = {
               ...msg,
-              reactions: updatedReactions
+              reactions: updatedReactions || msg.reactions
             }
             return updatedMsg
           } else {
@@ -889,7 +889,7 @@ export function useNativeChat(groupId: string | null, shouldIncrementUnread?: ()
         // Si des messages ont été synchronisés, forcer un rechargement après un délai
         if (data.synced > 0 && loadMessagesRef.current) {
           setTimeout(() => {
-            loadMessagesRef.current?.()
+            loadMessagesRef.current?.(groupId)
           }, 1000)
         }
       } else {
@@ -1206,11 +1206,11 @@ export function useNativeChat(groupId: string | null, shouldIncrementUnread?: ()
             
             setMessages(prev => {
               const updated = prev.map(msg => 
-                msg.id === fullMessage.id ? fullMessage : msg
+                msg.id === fullMessage.id ? fullMessage as ChatMessage : msg
               )
               // Mettre à jour le cache
               if (groupId) {
-                updateMessageInCache(groupId, fullMessage.id, () => fullMessage)
+                updateMessageInCache(groupId, fullMessage.id, () => fullMessage as ChatMessage)
               }
               return updated
             })
@@ -1226,7 +1226,7 @@ export function useNativeChat(groupId: string | null, shouldIncrementUnread?: ()
           filter: `group_id=eq.${groupId}`
         },
         (payload: RealtimePostgresChangesPayload<any>) => {
-          const deletedId = payload.old.id
+          const deletedId = (payload.old as any).id
           setMessages(prev => {
             const updated = prev.filter(msg => msg.id !== deletedId)
             // Mettre à jour le cache
@@ -1245,9 +1245,9 @@ export function useNativeChat(groupId: string | null, shouldIncrementUnread?: ()
           table: 'chat_reactions'
         },
         async (payload: RealtimePostgresChangesPayload<any>) => {
-          const messageId = payload.new?.message_id || payload.old?.message_id
-          const emoji = payload.new?.emoji || payload.old?.emoji
-          const changeUserId = payload.new?.user_id || payload.old?.user_id
+          const messageId = (payload.new as any)?.message_id || (payload.old as any)?.message_id
+          const emoji = (payload.new as any)?.emoji || (payload.old as any)?.emoji
+          const changeUserId = (payload.new as any)?.user_id || (payload.old as any)?.user_id
           const eventType = payload.eventType === 'INSERT' ? 'add' : payload.eventType === 'DELETE' ? 'remove' : 'update'
           
           // Vérifier si c'est un changement local qu'on a déjà traité
@@ -1311,7 +1311,7 @@ export function useNativeChat(groupId: string | null, shouldIncrementUnread?: ()
     // Charger les messages initiaux avec un petit délai pour s'assurer que loadMessagesRef est défini
     setTimeout(() => {
       if (loadMessagesRef.current) {
-        loadMessagesRef.current()
+        loadMessagesRef.current(groupId)
       }
     }, 0)
     

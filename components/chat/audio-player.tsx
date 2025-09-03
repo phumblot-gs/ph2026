@@ -161,7 +161,7 @@ export const AudioPlayer = memo(function AudioPlayer({ src, className }: AudioPl
       }
       
       // Retry logic seulement pour les erreurs réseau
-      if (retryCount < maxRetries && audioElement.error?.code === audioElement.error.MEDIA_ERR_NETWORK) {
+      if (retryCount < maxRetries && audioElement.error?.code === audioElement.error?.MEDIA_ERR_NETWORK) {
         setRetryCount(prev => prev + 1)
         
         // Attendre un peu avant de réessayer

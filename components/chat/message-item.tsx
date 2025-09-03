@@ -1,7 +1,7 @@
 'use client'
 
 import React from 'react'
-import { ChatMessage } from '@/types/chat'
+import { ChatMessage } from '@/hooks/use-native-chat'
 import { AudioPlayer } from './audio-player'
 
 interface MessageItemProps {

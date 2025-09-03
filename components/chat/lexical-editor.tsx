@@ -427,7 +427,7 @@ export const LexicalEditor = forwardRef<any, LexicalEditorProps>(({
 
   const handleEmojiClick = (emoji: string) => {
     // Insérer l'emoji dans l'éditeur
-    const editor = editorRef.current?.__lexicalEditor
+    const editor = (editorRef.current as any)?.__lexicalEditor
     if (editor) {
       editor.update(() => {
         const selection = $getSelection()
@@ -457,6 +457,7 @@ export const LexicalEditor = forwardRef<any, LexicalEditorProps>(({
               <ContentEditable 
                 ref={editorRef}
                 className="min-h-[36px] max-h-[240px] overflow-y-auto px-2 py-1.5 focus:outline-none text-sm"
+                aria-placeholder={placeholder}
                 placeholder={<div className="text-gray-400 absolute top-1.5 left-2 pointer-events-none text-sm">{placeholder}</div>}
               />
             }
