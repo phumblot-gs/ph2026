@@ -23,7 +23,7 @@ const saveToStorage = (cache: Map<string, CacheEntry>) => {
     })
     sessionStorage.setItem(CACHE_STORAGE_KEY, JSON.stringify(cacheObject))
   } catch (error) {
-    console.error('Erreur lors de la sauvegarde du cache:', error)
+    // Erreur silencieuse
   }
 }
 
@@ -46,7 +46,7 @@ const loadFromStorage = (): Map<string, CacheEntry> => {
     
     return cache
   } catch (error) {
-    console.error('Erreur lors du chargement du cache:', error)
+    // Erreur silencieuse
     return new Map()
   }
 }
@@ -86,13 +86,11 @@ export function useChatCache() {
   const getFromCache = useCallback((groupId: string): CacheEntry | null => {
     const entry = cache.get(groupId)
     if (!entry) {
-      console.log(`[Cache] Pas de cache pour le groupe ${groupId}`)
       return null
     }
     
     // Vérifier si le cache est encore valide
     if (Date.now() - entry.timestamp > CACHE_TTL) {
-      console.log(`[Cache] Cache expiré pour le groupe ${groupId}`)
       setCache(prevCache => {
         const newCache = new Map(prevCache)
         newCache.delete(groupId)
@@ -101,7 +99,6 @@ export function useChatCache() {
       return null
     }
     
-    console.log(`[Cache] Cache trouvé pour le groupe ${groupId}, ${entry.messages.length} messages`)
     return entry
   }, [cache])
   

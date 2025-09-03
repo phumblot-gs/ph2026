@@ -115,7 +115,7 @@ export function useNativeChat(groupId: string | null, shouldIncrementUnread?: ()
   const lastLoadTimeRef = useRef<number>(0) // Pour tracker le dernier rechargement
   
   // Utiliser le cache
-  const { getFromCache, updateCache, addMessageToCache, updateMessageInCache, removeMessageFromCache } = useChatCache()
+  const { getFromCache, updateCache, addMessageToCache, updateMessageInCache, removeMessageFromCache, invalidateCache } = useChatCache()
   
   // Récupérer l'utilisateur actuel
   useEffect(() => {
@@ -187,11 +187,9 @@ export function useNativeChat(groupId: string | null, shouldIncrementUnread?: ()
         
         // Si on recharge dans les 2 secondes après un changement local, réappliquer les changements
         if (timeSinceLastLoad < 2000 && pendingLocalChangesRef.current.size > 0) {
-          console.log('Reapplying pending local changes after reload')
           const updatedMessages = messages.map(msg => {
             const pendingChange = pendingLocalChangesRef.current.get(msg.id)
             if (pendingChange) {
-              console.log('Reapplying change for message:', msg.id)
               return { ...msg, reactions: pendingChange.reactions }
             }
             return msg
@@ -409,6 +407,17 @@ export function useNativeChat(groupId: string | null, shouldIncrementUnread?: ()
         return updated
       })
       
+      // Si c'est une réponse à un thread, forcer un rechargement pour avoir la structure complète
+      // Ceci est nécessaire car l'API retourne maintenant les messages principaux ET leurs réponses
+      if (threadTs) {
+        // Invalider le cache pour forcer un rechargement avec les réponses
+        invalidateCache(groupId)
+        // Recharger les messages après un délai plus long pour laisser le temps à la DB
+        setTimeout(() => {
+          loadMessagesRef.current(groupId)
+        }, 500)
+      }
+      
       return true
       
     } catch (err) {
@@ -421,7 +430,7 @@ export function useNativeChat(groupId: string | null, shouldIncrementUnread?: ()
     } finally {
       setSendingMessage(false)
     }
-  }, [groupId, addMessageToCache])
+  }, [groupId, addMessageToCache, invalidateCache])
   
   // Modifier un message
   const updateMessage = useCallback(async (
@@ -538,7 +547,6 @@ export function useNativeChat(groupId: string | null, shouldIncrementUnread?: ()
     messageId: string,
     emoji: string
   ): Promise<boolean> => {
-    console.log('[RemoveReaction] Start', { messageId, emoji })
     try {
       const response = await fetch(
         `/api/chat/reactions?message_id=${messageId}&emoji=${encodeURIComponent(emoji)}`,
@@ -552,43 +560,33 @@ export function useNativeChat(groupId: string | null, shouldIncrementUnread?: ()
         throw new Error('Erreur lors du retrait de la réaction')
       }
       
-      console.log('[RemoveReaction] API call successful')
-      
       // Mettre à jour l'état local immédiatement
       const currentUserId = currentUserIdRef.current
       if (!currentUserId) return false
       
-      console.log('[RemoveReaction] Current user ID:', currentUserId)
-      
       // Marquer ce changement comme local pour éviter le reload depuis realtime
       const changeKey = `${messageId}-${emoji}-${currentUserId}-remove`
       localReactionChangesRef.current.add(changeKey)
-      console.log('Marked as local change:', changeKey)
       
       // Nettoyer après 3 secondes
       setTimeout(() => {
         localReactionChangesRef.current.delete(changeKey)
-        console.log('Cleaned local change marker:', changeKey)
       }, 3000)
       
       // Ne pas utiliser setMessages juste pour logger
       
       setMessages(prev => {
-        console.log('[RemoveReaction] Inside setMessages')
         // IMPORTANT: Créer de nouveaux objets à TOUS les niveaux pour que React détecte les changements  
         const updated = prev.map(msg => {
           if (msg.id !== messageId) {
             return msg // Ne pas toucher aux autres messages
           }
-          console.log('[RemoveReaction] Found message, current reactions:', msg.reactions)
           const updatedReactions = msg.reactions?.map(reaction => {
             if (reaction.emoji === emoji) {
               // Retirer l'utilisateur actuel de la liste
               const updatedUsers = reaction.users.filter(u => u.id !== currentUserId)
-              console.log('[RemoveReaction] Updated users for emoji:', emoji, updatedUsers)
               // Si plus personne n'a cette réaction, on la supprime complètement
               if (updatedUsers.length === 0) {
-                console.log('[RemoveReaction] No more users, removing reaction')
                 return null
               }
               // Créer un NOUVEL objet réaction
@@ -607,10 +605,8 @@ export function useNativeChat(groupId: string | null, shouldIncrementUnread?: ()
             ...msg,
             reactions: updatedReactions
           }
-          console.log('[RemoveReaction] Updated message:', updatedMsg.reactions)
           return updatedMsg
         })
-        console.log('[RemoveReaction] Returning updated messages')
         return updated
       })
       
@@ -650,7 +646,6 @@ export function useNativeChat(groupId: string | null, shouldIncrementUnread?: ()
     emoji: string,
     emojiName?: string
   ): Promise<boolean> => {
-    console.log('[AddReaction] Start', { messageId, emoji, emojiName })
     
     // D'ABORD faire l'appel API
     try {
@@ -671,32 +666,24 @@ export function useNativeChat(groupId: string | null, shouldIncrementUnread?: ()
         const error = await response.json()
         // Si déjà réagi, retirer la réaction
         if (error.error === 'Réaction déjà ajoutée') {
-          console.log('[AddReaction] Already reacted, removing instead')
           return removeReaction(messageId, emoji)
         }
         throw new Error(error.error || 'Erreur lors de l\'ajout de la réaction')
       }
       
-      console.log('[AddReaction] API call successful')
-      
       // Récupérer le nom de l'utilisateur actuel
       const currentUserId = currentUserIdRef.current
       if (!currentUserId) {
-        console.error('No current user ID found')
         return false
       }
-      
-      console.log('[AddReaction] Current user ID:', currentUserId)
       
       // Marquer ce changement comme local pour éviter le reload depuis realtime
       const changeKey = `${messageId}-${emoji}-${currentUserId}-add`
       localReactionChangesRef.current.add(changeKey)
-      console.log('Marked as local change:', changeKey)
       
       // Nettoyer après 3 secondes
       setTimeout(() => {
         localReactionChangesRef.current.delete(changeKey)
-        console.log('Cleaned local change marker:', changeKey)
       }, 3000)
       
       // Obtenir le nom de l'utilisateur depuis messagesRef
@@ -708,15 +695,12 @@ export function useNativeChat(groupId: string | null, shouldIncrementUnread?: ()
       
       // Mettre à jour l'état local immédiatement
       setMessages(prev => {
-        console.log('[AddReaction] Inside setMessages, prev messages count:', prev.length)
         
         // IMPORTANT: Créer de nouveaux objets à TOUS les niveaux pour que React détecte les changements
         const updated = prev.map(msg => {
           if (msg.id !== messageId) {
             return msg // Ne pas toucher aux autres messages
           }
-          
-          console.log('[AddReaction] Found message to update, current reactions:', msg.reactions)
           
           // IMPORTANT: Toujours vérifier l'état actuel pour éviter les doublons
           const existingReaction = msg.reactions?.find(r => r.emoji === emoji)
@@ -725,11 +709,8 @@ export function useNativeChat(groupId: string | null, shouldIncrementUnread?: ()
             // Vérifier si l'utilisateur n'a pas déjà réagi (protection contre le double appel)
             const alreadyReacted = existingReaction.users.some(u => u.id === currentUserId)
             if (alreadyReacted) {
-              console.log('[AddReaction] User already reacted (protection contre double appel), skipping')
               return msg
             }
-            
-            console.log('[AddReaction] Adding user to existing reaction')
             // Créer un NOUVEAU tableau de réactions avec de NOUVEAUX objets
             const updatedReactions = msg.reactions.map(reaction => {
               if (reaction.emoji === emoji) {
@@ -745,8 +726,6 @@ export function useNativeChat(groupId: string | null, shouldIncrementUnread?: ()
                   users: newUsers,
                   count: newUsers.length
                 }
-                console.log('[AddReaction] Reaction before:', reaction)
-                console.log('[AddReaction] Reaction after:', updatedReaction)
                 return updatedReaction
               }
               // Retourner la réaction telle quelle (pas de copie si pas modifiée)
@@ -758,11 +737,9 @@ export function useNativeChat(groupId: string | null, shouldIncrementUnread?: ()
               ...msg,
               reactions: updatedReactions
             }
-            console.log('[AddReaction] Updated message with existing reaction:', updatedMsg.reactions)
             return updatedMsg
           } else {
             // Nouvelle réaction
-            console.log('[AddReaction] Creating new reaction')
             const newReaction = {
               emoji,
               emoji_name: emojiName || emoji,
@@ -778,16 +755,11 @@ export function useNativeChat(groupId: string | null, shouldIncrementUnread?: ()
               ...msg,
               reactions: [...(msg.reactions || []), newReaction]
             }
-            console.log('[AddReaction] Updated message with new reaction:', updatedMsg.reactions)
             return updatedMsg
           }
         })
         
-        console.log('[AddReaction] Messages after map, updated[0]:', updated.find(m => m.id === messageId)?.reactions)
-        
         // NE PAS mettre à jour le cache ici, le faire après que l'état soit mis à jour
-        
-        console.log('[AddReaction] Returning updated messages')
         return updated
       })
       
@@ -796,7 +768,6 @@ export function useNativeChat(groupId: string | null, shouldIncrementUnread?: ()
         setTimeout(() => {
           const updatedMessage = messagesRef.current.find(m => m.id === messageId)
           if (updatedMessage) {
-            console.log('[AddReaction] Updating cache with:', updatedMessage.reactions)
             updateMessageInCache(groupId, messageId, () => updatedMessage)
             // Stocker le changement local en cas de rechargement imminent
             pendingLocalChangesRef.current.set(messageId, {
@@ -997,7 +968,6 @@ export function useNativeChat(groupId: string | null, shouldIncrementUnread?: ()
           }
           
           if (messageError) {
-            console.error('[Chat Realtime] Erreur récupération message:', messageError)
             return
           }
           
@@ -1283,19 +1253,16 @@ export function useNativeChat(groupId: string | null, shouldIncrementUnread?: ()
           // Vérifier si c'est un changement local qu'on a déjà traité
           const changeKey = `${messageId}-${emoji}-${changeUserId}-${eventType}`
           if (localReactionChangesRef.current.has(changeKey)) {
-            console.log('Skipping reload - local change already applied', changeKey)
             return
           }
           
           // Si c'est notre propre changement mais pas marqué comme local (ne devrait pas arriver)
           if (changeUserId === currentUserIdRef.current) {
-            console.log('Own change detected but not marked as local, skipping', changeKey)
             return
           }
           
           // Recharger le message pour mettre à jour ses réactions
           if (messageId) {
-            console.log('Reloading messages due to reaction change by another user', { changeUserId, currentUserId: currentUserIdRef.current })
             // Petit délai pour laisser les autres événements arriver
             setTimeout(async () => {
               // Vérifier une dernière fois si ce n'est pas un changement local

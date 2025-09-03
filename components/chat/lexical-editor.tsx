@@ -294,6 +294,7 @@ interface LexicalEditorProps {
   onStartRecording: () => void
   onStopRecording: () => void
   className?: string
+  initialValue?: string
 }
 
 export const LexicalEditor = forwardRef<any, LexicalEditorProps>(({
@@ -308,8 +309,12 @@ export const LexicalEditor = forwardRef<any, LexicalEditorProps>(({
   isRecording,
   onStartRecording,
   onStopRecording,
-  className
+  className,
+  initialValue
 }, ref) => {
+  console.log('📝 LexicalEditor - initialValue:', initialValue)
+  console.log('📝 LexicalEditor - value:', value)
+  
   const editorRef = useRef<HTMLDivElement>(null)
   const [showToolbar, setShowToolbar] = useState(false)
   const [shouldClear, setShouldClear] = useState(false)
@@ -367,6 +372,27 @@ export const LexicalEditor = forwardRef<any, LexicalEditorProps>(({
       setTimeout(() => setShouldClear(false), 100)
     }
   }, [value])
+
+  // Utiliser useEffect pour l'initialisation au lieu de initialConfig.editorState
+  useEffect(() => {
+    if (initialValue && initialValue.trim()) {
+      console.log('🚀 useEffect - Initializing editor with:', initialValue)
+      // Attendre que l'éditeur soit monté
+      setTimeout(() => {
+        if (editorRef.current) {
+          try {
+            const contentEditable = editorRef.current
+            if (contentEditable && contentEditable.textContent === '') {
+              console.log('📄 Setting textContent directly')
+              contentEditable.textContent = initialValue
+            }
+          } catch (error) {
+            console.log('Erreur initialisation:', error)
+          }
+        }
+      }, 100)
+    }
+  }, [initialValue])
 
   const initialConfig: InitialConfigType = {
     namespace: 'ChatEditor',

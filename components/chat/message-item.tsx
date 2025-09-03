@@ -9,6 +9,7 @@ interface MessageItemProps {
   renderMessage: (message: ChatMessage, isReply: boolean, showHeader: boolean) => React.ReactNode
   isReply?: boolean
   showHeader?: boolean
+  isEditing?: boolean
 }
 
 // Composant mémorisé pour éviter les re-rendus inutiles
@@ -16,12 +17,13 @@ export const MessageItem = React.memo(function MessageItem({
   message, 
   renderMessage, 
   isReply = false, 
-  showHeader = false 
+  showHeader = false,
+  isEditing = false 
 }: MessageItemProps) {
   return <>{renderMessage(message, isReply, showHeader)}</>
 }, (prevProps, nextProps) => {
   // Comparaison personnalisée pour éviter les re-rendus
-  // Ne re-rendre que si le message a changé
+  // Ne re-rendre que si le message a changé ou si on est en mode édition
   return (
     prevProps.message.id === nextProps.message.id &&
     prevProps.message.text === nextProps.message.text &&
@@ -30,6 +32,7 @@ export const MessageItem = React.memo(function MessageItem({
     prevProps.message.files?.length === nextProps.message.files?.length &&
     prevProps.message.reactions?.length === nextProps.message.reactions?.length &&
     prevProps.isReply === nextProps.isReply &&
-    prevProps.showHeader === nextProps.showHeader
+    prevProps.showHeader === nextProps.showHeader &&
+    prevProps.isEditing === nextProps.isEditing
   )
 })

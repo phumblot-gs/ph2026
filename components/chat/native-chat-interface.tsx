@@ -34,6 +34,98 @@ const QUICK_REACTIONS = ['👍', '❤️', '😄', '👏', '🔥', '🎉', '👀
 // Composant AudioPlayer mémorisé pour éviter les re-rendus
 const MemoizedAudioPlayer = React.memo(AudioPlayer)
 
+// Composant pour l'édition avec état local
+const EditingWidget = ({ initialText, onSave, onCancel }: { 
+  initialText: string
+  onSave: (text: string) => Promise<void>
+  onCancel: () => void 
+}) => {
+  console.log('🔧 EditingWidget - initialText:', initialText)
+  const [text, setText] = useState(initialText)
+  const [saving, setSaving] = useState(false)
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false)
+  const editorRef = useRef<any>(null)
+  
+  console.log('🔧 EditingWidget - text state:', text)
+
+  const handleSave = async () => {
+    if (!text.trim()) return
+    setSaving(true)
+    await onSave(text)
+    setSaving(false)
+  }
+
+  // Focus l'éditeur au montage
+  useEffect(() => {
+    setTimeout(() => {
+      editorRef.current?.focus()
+    }, 200)
+  }, [])
+
+  return (
+    <div className="space-y-2">
+      <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+        <div className="text-xs text-blue-600 mb-2 font-medium">Modification du message</div>
+        
+        {/* Zone d'édition avec le même style que le champ principal */}
+        <div className="flex gap-2 items-center">
+          <div className="flex-1">
+            <LexicalEditor
+              key={`edit-${initialText}`}
+              ref={editorRef}
+              value={text}
+              initialValue={initialText}
+              onChange={(markdown) => {
+                setText(markdown)
+              }}
+              onSubmit={() => {
+                handleSave()
+              }}
+              placeholder="Modifier votre message..."
+              disabled={saving}
+              showEmojiPicker={showEmojiPicker}
+              setShowEmojiPicker={setShowEmojiPicker}
+              isRecording={false}
+              onStartRecording={() => {}}
+              onStopRecording={() => {}}
+              className="bg-white"
+            />
+          </div>
+
+          <Button
+            onClick={handleSave}
+            disabled={saving || !text.trim()}
+            size="default"
+            className="h-9"
+          >
+            {saving ? (
+              <Spinner size="sm" className="h-4 w-4 text-primary-foreground" />
+            ) : (
+              <Send className="h-4 w-4" />
+            )}
+          </Button>
+        </div>
+        
+        <div className="flex justify-between items-center mt-3">
+          <div className="text-xs text-gray-500">
+            Ctrl+Enter pour enregistrer • Escape pour annuler
+          </div>
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={onCancel}
+              disabled={saving}
+            >
+              Annuler
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function NativeChatInterface({
   groupId,
   groupName,
@@ -128,6 +220,8 @@ function NativeChatInterface({
   const [messageText, setMessageText] = useState('')
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null)
   const [editingText, setEditingText] = useState('')
+  const [showEditingEmojiPicker, setShowEditingEmojiPicker] = useState(false)
+  const editingEditorRef = useRef<any>(null)
   const [replyingTo, setReplyingTo] = useState<string | null>(null)
   const [showEmojiReactionPicker, setShowEmojiReactionPicker] = useState<string | null>(null)
   const [attachedFiles, setAttachedFiles] = useState<File[]>([])
@@ -371,16 +465,7 @@ function NativeChatInterface({
     }
   }
 
-  // Modifier un message
-  const handleUpdateMessage = async () => {
-    if (!editingMessageId || !editingText.trim()) return
-
-    const success = await updateMessage(editingMessageId, editingText)
-    if (success) {
-      setEditingMessageId(null)
-      setEditingText('')
-    }
-  }
+  // Cette fonction a été déplacée dans renderMessage
 
   // Supprimer un message
   const handleDeleteMessage = async (messageId: string) => {
@@ -391,28 +476,15 @@ function NativeChatInterface({
 
   // Ajouter/retirer une réaction
   const handleToggleReaction = async (messageId: string, emoji: string) => {
-    console.log('[HandleToggleReaction] Start', { messageId, emoji, currentUserId })
     const message = messages.find(m => m.id === messageId)
-    console.log('[HandleToggleReaction] Message found:', message?.id, 'Reactions:', message?.reactions)
     const existingReaction = message?.reactions?.find(r => r.emoji === emoji)
     const hasReacted = existingReaction?.users.some(u => u.id === currentUserId)
-    console.log('[HandleToggleReaction] Has reacted?', hasReacted, 'Existing reaction:', existingReaction)
 
     if (hasReacted) {
-      console.log('[HandleToggleReaction] Removing reaction')
-      const success = await removeReaction(messageId, emoji)
-      console.log('[HandleToggleReaction] Remove result:', success)
+      await removeReaction(messageId, emoji)
     } else {
-      console.log('[HandleToggleReaction] Adding reaction')
-      const success = await addReaction(messageId, emoji)
-      console.log('[HandleToggleReaction] Add result:', success)
+      await addReaction(messageId, emoji)
     }
-    
-    // Attendre un peu pour que l'état soit mis à jour
-    setTimeout(() => {
-      const messageAfter = messagesRef.current.find(m => m.id === messageId)
-      console.log('[HandleToggleReaction] Message after action (delayed):', messageAfter?.reactions)
-    }, 200)
     
     setShowEmojiReactionPicker(null)
   }
@@ -629,6 +701,20 @@ function NativeChatInterface({
   const renderMessage = useCallback((message: typeof messages[0], isReply = false, showHeader = true) => {
     const isCurrentUser = message.user_id === currentUserId
     const parentMessage = message.thread_ts ? getParentMessage(message.thread_ts) : null
+    
+    // Fonction locale pour mettre à jour le message
+    const handleUpdateMessage = async () => {
+      if (!editingMessageId || !editingText.trim()) {
+        return
+      }
+      
+      const success = await updateMessage(editingMessageId, editingText)
+      if (success) {
+        setEditingMessageId(null)
+        setEditingText('')
+        setShowEditingEmojiPicker(false)
+      }
+    }
 
     return (
       <div
@@ -652,6 +738,24 @@ function NativeChatInterface({
         ) : null}
 
         <div className="flex-1 min-w-0">
+          {/* Header pour les réponses */}
+          {isReply && (
+            <div className="flex items-baseline gap-2 mb-1">
+              <span className="font-semibold text-sm text-gray-600">
+                {isCurrentUser ? 'Vous' : `${message.member?.first_name} ${message.member?.last_name}`}
+              </span>
+              {mounted && (
+                <span className="text-xs text-gray-400">
+                  {formatDistanceToNow(new Date(message.created_at), {
+                    addSuffix: true,
+                    locale: fr
+                  })}
+                </span>
+              )}
+            </div>
+          )}
+          
+          {/* Header pour les messages principaux */}
           {!isReply && showHeader && (
             <div className="flex items-baseline gap-2 mb-1">
               <span className="font-semibold text-sm">
@@ -681,28 +785,23 @@ function NativeChatInterface({
           )}
 
           {editingMessageId === message.id ? (
-            <div className="flex gap-2">
-              <Input
-                value={editingText}
-                onChange={(e) => setEditingText(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleUpdateMessage()}
-                className="flex-1"
-                autoFocus
-              />
-              <Button size="sm" onClick={handleUpdateMessage}>
-                Modifier
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => {
+            <EditingWidget 
+              initialText={(() => {
+                console.log('🎯 Passing to EditingWidget - message.text:', message.text)
+                return message.text || ''
+              })()}
+              onSave={async (newText) => {
+                const success = await updateMessage(message.id, newText)
+                if (success) {
                   setEditingMessageId(null)
                   setEditingText('')
-                }}
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
+                }
+              }}
+              onCancel={() => {
+                setEditingMessageId(null)
+                setEditingText('')
+              }}
+            />
           ) : (
             <div 
               className={cn(
@@ -795,7 +894,6 @@ function NativeChatInterface({
             <div className="flex flex-wrap gap-1 mt-2">
               {message.reactions.map(reaction => {
                 const hasReacted = reaction.users.some(u => u.id === currentUserId)
-                console.log('[Render] Reaction:', reaction.emoji, 'Count:', reaction.count, 'Users:', reaction.users.length)
                 const popoverId = `${message.id}-${reaction.emoji}`
                 const shouldForceClose = forceClosePopover === popoverId
                 
@@ -918,8 +1016,10 @@ function NativeChatInterface({
                   variant="ghost"
                   className="h-7 w-7 p-0"
                   onClick={() => {
-                    setReplyingTo(message.id)
-                    inputRef.current?.focus()
+                    // Si c'est une réponse, répondre au message parent original
+                    const replyToId = message.thread_ts || message.id
+                    setReplyingTo(replyToId)
+                    editorRef.current?.focus()
                   }}
                 >
                   <Reply className="h-4 w-4" />
@@ -933,7 +1033,11 @@ function NativeChatInterface({
                     className="h-7 w-7 p-0"
                     onClick={() => {
                       setEditingMessageId(message.id)
-                      setEditingText(message.text)
+                      setEditingText(message.text || '')
+                      // Focus l'éditeur après un court délai pour laisser le temps au composant de se monter
+                      setTimeout(() => {
+                        editingEditorRef.current?.focus()
+                      }, 100)
                     }}
                   >
                     <Edit2 className="h-4 w-4" />
@@ -982,7 +1086,7 @@ function NativeChatInterface({
         )}
       </div>
     )
-  }, [currentUserId, messages, editingMessageId, editingText, showEmojiReactionPicker, mounted, updateMessage, deleteMessage, addReaction, removeReaction, setReplyingTo, setEditingMessageId, getParentMessage])
+  }, [currentUserId, messages, editingMessageId, editingText, showEmojiReactionPicker, mounted, updateMessage, deleteMessage, addReaction, removeReaction, setReplyingTo, setEditingMessageId, setEditingText, setShowEditingEmojiPicker, getParentMessage])
 
   // Fonction pour vérifier si deux messages doivent être groupés
   const shouldGroupMessages = (msg1: typeof messages[0], msg2: typeof messages[0]) => {
@@ -1130,6 +1234,7 @@ function NativeChatInterface({
                   renderMessage={renderMessage}
                   isReply={false}
                   showHeader={messageIndex === 0}
+                  isEditing={editingMessageId === message.id}
                 />
               ))}
               {/* Afficher les réponses */}
@@ -1140,6 +1245,7 @@ function NativeChatInterface({
                   renderMessage={renderMessage}
                   isReply={true}
                   showHeader={true}
+                  isEditing={editingMessageId === reply.id}
                 />
               ))}
             </div>

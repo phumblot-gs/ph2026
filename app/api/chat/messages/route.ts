@@ -187,7 +187,7 @@ export async function GET(request: NextRequest) {
     if (threadTs) {
       query = query.eq('thread_ts', threadTs)
     } else {
-      // Pour la timeline principale, ne pas inclure les réponses
+      // Pour la timeline principale, récupérer les messages principaux seulement d'abord
       query = query.is('thread_ts', null)
     }
     
@@ -204,18 +204,36 @@ export async function GET(request: NextRequest) {
       }
     }
     
-    const { data: messages, error } = await query
+    const { data: mainMessages, error: mainError } = await query
     
-    if (error) {
+    if (mainError) {
       return NextResponse.json({ error: 'Erreur lors de la récupération des messages' }, { status: 500 })
     }
     
+    // Si on n'est pas dans un thread spécifique, récupérer aussi les réponses
+    let allMessages = [...(mainMessages || [])]
+    
+    if (!threadTs && mainMessages && mainMessages.length > 0) {
+      // Récupérer toutes les réponses des messages principaux
+      const messageIds = mainMessages.map(m => m.id)
+      const { data: threadMessages } = await supabase
+        .from('chat_messages')
+        .select('*')
+        .in('thread_ts', messageIds)
+        .is('deleted_at', null)
+        .order('created_at', { ascending: false })
+      
+      if (threadMessages) {
+        allMessages = [...mainMessages, ...threadMessages]
+      }
+    }
+    
     // Enrichir les messages avec les données associées
-    const formattedMessages = await Promise.all((messages || []).map(msg => enrichMessage(msg, supabase)))
+    const formattedMessages = await Promise.all(allMessages.map(msg => enrichMessage(msg, supabase)))
     
     // Mettre à jour le statut de lecture
-    if (messages && messages.length > 0) {
-      const latestMessage = messages[0]
+    if (mainMessages && mainMessages.length > 0) {
+      const latestMessage = mainMessages[0]
       await supabase
         .from('chat_read_status')
         .upsert({
@@ -231,7 +249,7 @@ export async function GET(request: NextRequest) {
     
     return NextResponse.json({ 
       messages: formattedMessages || [],
-      has_more: messages?.length === limit
+      has_more: mainMessages?.length === limit
     })
     
   } catch (error) {
