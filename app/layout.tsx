@@ -2,6 +2,7 @@ import type { Metadata } from "next"
 import { Inter } from "next/font/google"
 import "./globals.css"
 import EnvironmentBanner from "@/components/EnvironmentBanner"
+import { Toaster } from "sonner"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -24,6 +25,17 @@ export default function RootLayout({
         <div className={showBanner ? 'pt-7' : ''}>
           {children}
         </div>
+        <Toaster 
+          position="top-center"
+          toastOptions={{
+            duration: 3000,
+            style: {
+              background: '#fff',
+              color: '#363636',
+              border: '1px solid #e5e7eb',
+            },
+          }}
+        />
       </body>
     </html>
   )
