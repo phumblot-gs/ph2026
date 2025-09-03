@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
     }
     
     // Préparer les métadonnées du fichier
-    let fileMetadata: any = {
+    const fileMetadata: any = {
       id: fileId,
       name: safeFileName,
       original_name: file.name,
