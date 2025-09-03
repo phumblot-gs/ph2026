@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { DashboardNav } from '@/components/dashboard-nav'
 import { DashboardSidebar, type DashboardView } from '@/components/dashboard-sidebar'
-import { SlackChatInterface } from '@/components/slack-chat-interface'
+import { ChatWrapper } from '@/components/chat/chat-wrapper'
 import { EventsView } from '@/components/events-view'
 
 interface DashboardClientProps {
@@ -31,7 +31,7 @@ export function DashboardClient({
   initialMessages,
   cacheInfo 
 }: DashboardClientProps) {
-  const [currentView, setCurrentView] = useState<DashboardView>('slack')
+  const [currentView, setCurrentView] = useState<DashboardView>('discussions')
 
   return (
     <div className="h-screen bg-gray-50 overflow-hidden">
@@ -42,7 +42,7 @@ export function DashboardClient({
         highlightUrl={highlightUrl} 
       />
       
-      <div className="flex h-full pt-16">
+      <div className="flex h-full">
         {/* Sidebar */}
         <DashboardSidebar
           currentView={currentView}
@@ -51,8 +51,8 @@ export function DashboardClient({
         
         {/* Main Content Area */}
         <div className="flex-1 overflow-hidden">
-            {currentView === 'slack' ? (
-              <SlackChatInterface
+            {currentView === 'discussions' ? (
+              <ChatWrapper
                 groups={groups}
                 currentUserId={userId}
                 initialMessages={initialMessages}
