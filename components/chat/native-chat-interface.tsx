@@ -134,6 +134,7 @@ function NativeChatInterface({
   const [isTyping, setIsTyping] = useState(false)
   const [showScrollButton, setShowScrollButton] = useState(false)
   const [newMessagesWhileScrolled, setNewMessagesWhileScrolled] = useState(0)
+  const [forceClosePopover, setForceClosePopover] = useState<string | null>(null)
   const [isLoadingHistory, setIsLoadingHistory] = useState(false)
   const [expectedMessagesAfterLoad, setExpectedMessagesAfterLoad] = useState<number | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -152,6 +153,14 @@ function NativeChatInterface({
   const hasInitiallyLoadedRef = useRef(false)
   const previousMessageCountRef = useRef(0)
   const hasUserInteractedRef = useRef(false) // Pour éviter le marquage automatique au chargement
+  const [isDragging, setIsDragging] = useState(false)
+  const dragCounterRef = useRef(0) // Pour gérer les entrées/sorties multiples du drag
+  const messagesRef = useRef(messages) // Référence aux messages pour éviter les closures
+  
+  // Mettre à jour la référence quand les messages changent
+  useEffect(() => {
+    messagesRef.current = messages
+  }, [messages])
 
   // Utiliser la fonction isNearBottomEarly définie en haut
   const isNearBottom = isNearBottomEarly
@@ -382,15 +391,29 @@ function NativeChatInterface({
 
   // Ajouter/retirer une réaction
   const handleToggleReaction = async (messageId: string, emoji: string) => {
+    console.log('[HandleToggleReaction] Start', { messageId, emoji, currentUserId })
     const message = messages.find(m => m.id === messageId)
+    console.log('[HandleToggleReaction] Message found:', message?.id, 'Reactions:', message?.reactions)
     const existingReaction = message?.reactions?.find(r => r.emoji === emoji)
     const hasReacted = existingReaction?.users.some(u => u.id === currentUserId)
+    console.log('[HandleToggleReaction] Has reacted?', hasReacted, 'Existing reaction:', existingReaction)
 
     if (hasReacted) {
-      await removeReaction(messageId, emoji)
+      console.log('[HandleToggleReaction] Removing reaction')
+      const success = await removeReaction(messageId, emoji)
+      console.log('[HandleToggleReaction] Remove result:', success)
     } else {
-      await addReaction(messageId, emoji)
+      console.log('[HandleToggleReaction] Adding reaction')
+      const success = await addReaction(messageId, emoji)
+      console.log('[HandleToggleReaction] Add result:', success)
     }
+    
+    // Attendre un peu pour que l'état soit mis à jour
+    setTimeout(() => {
+      const messageAfter = messagesRef.current.find(m => m.id === messageId)
+      console.log('[HandleToggleReaction] Message after action (delayed):', messageAfter?.reactions)
+    }, 200)
+    
     setShowEmojiReactionPicker(null)
   }
 
@@ -399,6 +422,43 @@ function NativeChatInterface({
     const files = Array.from(e.target.files || [])
     setAttachedFiles(prev => [...prev, ...files])
   }
+
+  // Gestionnaires pour le drag & drop
+  const handleDragEnter = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    dragCounterRef.current++
+    if (e.dataTransfer.items && e.dataTransfer.items.length > 0) {
+      setIsDragging(true)
+    }
+  }, [])
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    dragCounterRef.current--
+    if (dragCounterRef.current === 0) {
+      setIsDragging(false)
+    }
+  }, [])
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+  }, [])
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragging(false)
+    dragCounterRef.current = 0
+
+    const files = Array.from(e.dataTransfer.files)
+    if (files.length > 0) {
+      setAttachedFiles(prev => [...prev, ...files])
+      toast.success(`${files.length} fichier${files.length > 1 ? 's' : ''} ajouté${files.length > 1 ? 's' : ''}`)
+    }
+  }, [])
 
   // Fonctions pour l'enregistrement vocal
   const startRecording = async () => {
@@ -733,28 +793,85 @@ function NativeChatInterface({
           {/* Réactions */}
           {message.reactions && message.reactions.length > 0 && (
             <div className="flex flex-wrap gap-1 mt-2">
-              {message.reactions.map(reaction => (
-                <Popover key={reaction.emoji}>
-                  <PopoverTrigger asChild>
-                    <button
-                      onClick={() => handleToggleReaction(message.id, reaction.emoji)}
-                      className={cn(
-                        'inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs',
-                        'bg-gray-100 hover:bg-gray-200 transition-colors',
-                        reaction.users.some(u => u.id === currentUserId) && 'bg-blue-100 hover:bg-blue-200'
-                      )}
-                    >
-                      <span>{reaction.emoji}</span>
-                      <span>{reaction.count}</span>
-                    </button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-2">
-                    <div className="text-xs">
-                      {reaction.users.map(u => u.name).join(', ')}
-                    </div>
-                  </PopoverContent>
-                </Popover>
-              ))}
+              {message.reactions.map(reaction => {
+                const hasReacted = reaction.users.some(u => u.id === currentUserId)
+                console.log('[Render] Reaction:', reaction.emoji, 'Count:', reaction.count, 'Users:', reaction.users.length)
+                const popoverId = `${message.id}-${reaction.emoji}`
+                const shouldForceClose = forceClosePopover === popoverId
+                
+                return (
+                  <Popover 
+                    key={reaction.emoji}
+                    open={shouldForceClose ? false : undefined}
+                    onOpenChange={(open) => {
+                      if (!open && forceClosePopover === popoverId) {
+                        setForceClosePopover(null)
+                      }
+                    }}>
+                    <PopoverTrigger asChild>
+                      <button
+                        className={cn(
+                          'inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs',
+                          'bg-gray-100 hover:bg-gray-200 transition-colors',
+                          hasReacted && 'bg-blue-100 hover:bg-blue-200'
+                        )}
+                      >
+                        <span>{reaction.emoji}</span>
+                        <span>{reaction.count}</span>
+                      </button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto max-w-xs p-3">
+                      <div className="space-y-2">
+                        <div className="space-y-1">
+                          {reaction.users.map(user => (
+                            <div key={user.id} className="flex items-center gap-2 py-1">
+                              <Avatar className="h-6 w-6">
+                                <AvatarFallback className="text-xs">
+                                  {user.name.split(' ').map(n => n[0]).join('').toUpperCase()}
+                                </AvatarFallback>
+                              </Avatar>
+                              <span className="text-sm text-gray-700">
+                                {user.id === currentUserId ? 'Vous' : user.name}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                        {hasReacted ? (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="w-full mt-2"
+                            onClick={(e) => {
+                              e.preventDefault()
+                              e.stopPropagation()
+                              handleToggleReaction(message.id, reaction.emoji)
+                              // Fermer le popover après le clic
+                              setForceClosePopover(popoverId)
+                            }}
+                          >
+                            Retirer {reaction.emoji}
+                          </Button>
+                        ) : (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="w-full mt-2"
+                            onClick={(e) => {
+                              e.preventDefault()
+                              e.stopPropagation()
+                              handleToggleReaction(message.id, reaction.emoji)
+                              // Fermer le popover après le clic
+                              setForceClosePopover(popoverId)
+                            }}
+                          >
+                            Ajouter {reaction.emoji}
+                          </Button>
+                        )}
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                )
+              })}
             </div>
           )}
 
@@ -918,7 +1035,26 @@ function NativeChatInterface({
   }, [] as Array<{ messages: typeof messages, replies: typeof messages, isThread: boolean }>)
 
   return (
-    <div className={cn('flex flex-col h-full', className)}>
+    <div 
+      className={cn('flex flex-col h-full relative', className)}
+      onDragEnter={handleDragEnter}
+      onDragLeave={handleDragLeave}
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
+    >
+      {/* Overlay pour le drag & drop */}
+      {isDragging && (
+        <div className="absolute inset-0 z-50 bg-blue-50/90 backdrop-blur-sm flex items-center justify-center pointer-events-none">
+          <div className="bg-white rounded-lg shadow-lg p-8 border-2 border-dashed border-blue-500">
+            <div className="text-center">
+              <Paperclip className="h-12 w-12 text-blue-500 mx-auto mb-3" />
+              <p className="text-lg font-medium text-gray-900">Déposez vos fichiers ici</p>
+              <p className="text-sm text-gray-500 mt-1">Vous pouvez déposer plusieurs fichiers à la fois</p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between p-4 border-b flex-shrink-0">
         <h2 className="text-lg font-semibold">{groupName || 'Chat'}</h2>

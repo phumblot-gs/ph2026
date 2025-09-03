@@ -104,6 +104,15 @@ export function useNativeChat(groupId: string | null, shouldIncrementUnread?: ()
   const syncIntervalRef = useRef<NodeJS.Timeout | null>(null)
   const loadMessagesRef = useRef<() => void>()
   const processedMessagesRef = useRef<Set<string>>(new Set()) // Pour éviter les doublons d'incrémentation
+  const localReactionChangesRef = useRef<Set<string>>(new Set()) // Pour tracker les changements locaux de réactions
+  const pendingLocalChangesRef = useRef<Map<string, any>>(new Map()) // Pour stocker les changements locaux en attente
+  const messagesRef = useRef(messages) // Pour accéder aux messages mis à jour sans setMessages
+  
+  // Mettre à jour la référence quand les messages changent
+  useEffect(() => {
+    messagesRef.current = messages
+  }, [messages])
+  const lastLoadTimeRef = useRef<number>(0) // Pour tracker le dernier rechargement
   
   // Utiliser le cache
   const { getFromCache, updateCache, addMessageToCache, updateMessageInCache, removeMessageFromCache } = useChatCache()
@@ -170,9 +179,34 @@ export function useNativeChat(groupId: string | null, shouldIncrementUnread?: ()
       } else {
         // Remplacer tous les messages (déjà triés par l'API)
         const messages = data.messages || []
-        setMessages(messages)
-        // Mettre à jour le cache
-        updateCache(groupId, messages, data.has_more || false)
+        
+        // Appliquer les changements locaux en attente si le rechargement est récent
+        const now = Date.now()
+        const timeSinceLastLoad = now - lastLoadTimeRef.current
+        lastLoadTimeRef.current = now
+        
+        // Si on recharge dans les 2 secondes après un changement local, réappliquer les changements
+        if (timeSinceLastLoad < 2000 && pendingLocalChangesRef.current.size > 0) {
+          console.log('Reapplying pending local changes after reload')
+          const updatedMessages = messages.map(msg => {
+            const pendingChange = pendingLocalChangesRef.current.get(msg.id)
+            if (pendingChange) {
+              console.log('Reapplying change for message:', msg.id)
+              return { ...msg, reactions: pendingChange.reactions }
+            }
+            return msg
+          })
+          setMessages(updatedMessages)
+          updateCache(groupId, updatedMessages, data.has_more || false)
+        } else {
+          setMessages(messages)
+          updateCache(groupId, messages, data.has_more || false)
+        }
+        
+        // Nettoyer les changements en attente après 3 secondes
+        setTimeout(() => {
+          pendingLocalChangesRef.current.clear()
+        }, 3000)
       }
       
       setHasMore(data.has_more || false)
@@ -499,12 +533,126 @@ export function useNativeChat(groupId: string | null, shouldIncrementUnread?: ()
     }
   }, [groupId, updateMessageInCache, messages])
   
+  // Retirer une réaction (défini avant addReaction car utilisé dans ses dépendances)
+  const removeReaction = useCallback(async (
+    messageId: string,
+    emoji: string
+  ): Promise<boolean> => {
+    console.log('[RemoveReaction] Start', { messageId, emoji })
+    try {
+      const response = await fetch(
+        `/api/chat/reactions?message_id=${messageId}&emoji=${encodeURIComponent(emoji)}`,
+        {
+          method: 'DELETE',
+          credentials: 'include'
+        }
+      )
+      
+      if (!response.ok) {
+        throw new Error('Erreur lors du retrait de la réaction')
+      }
+      
+      console.log('[RemoveReaction] API call successful')
+      
+      // Mettre à jour l'état local immédiatement
+      const currentUserId = currentUserIdRef.current
+      if (!currentUserId) return false
+      
+      console.log('[RemoveReaction] Current user ID:', currentUserId)
+      
+      // Marquer ce changement comme local pour éviter le reload depuis realtime
+      const changeKey = `${messageId}-${emoji}-${currentUserId}-remove`
+      localReactionChangesRef.current.add(changeKey)
+      console.log('Marked as local change:', changeKey)
+      
+      // Nettoyer après 3 secondes
+      setTimeout(() => {
+        localReactionChangesRef.current.delete(changeKey)
+        console.log('Cleaned local change marker:', changeKey)
+      }, 3000)
+      
+      // Ne pas utiliser setMessages juste pour logger
+      
+      setMessages(prev => {
+        console.log('[RemoveReaction] Inside setMessages')
+        // IMPORTANT: Créer de nouveaux objets à TOUS les niveaux pour que React détecte les changements  
+        const updated = prev.map(msg => {
+          if (msg.id !== messageId) {
+            return msg // Ne pas toucher aux autres messages
+          }
+          console.log('[RemoveReaction] Found message, current reactions:', msg.reactions)
+          const updatedReactions = msg.reactions?.map(reaction => {
+            if (reaction.emoji === emoji) {
+              // Retirer l'utilisateur actuel de la liste
+              const updatedUsers = reaction.users.filter(u => u.id !== currentUserId)
+              console.log('[RemoveReaction] Updated users for emoji:', emoji, updatedUsers)
+              // Si plus personne n'a cette réaction, on la supprime complètement
+              if (updatedUsers.length === 0) {
+                console.log('[RemoveReaction] No more users, removing reaction')
+                return null
+              }
+              // Créer un NOUVEL objet réaction
+              return {
+                emoji: reaction.emoji,
+                emoji_name: reaction.emoji_name,
+                users: updatedUsers,
+                count: updatedUsers.length
+              }
+            }
+            return reaction // Pas de copie si pas modifiée
+          }).filter(Boolean) // Enlever les réactions null
+          
+          // Créer un NOUVEAU message avec les réactions mises à jour
+          const updatedMsg = {
+            ...msg,
+            reactions: updatedReactions
+          }
+          console.log('[RemoveReaction] Updated message:', updatedMsg.reactions)
+          return updatedMsg
+        })
+        console.log('[RemoveReaction] Returning updated messages')
+        return updated
+      })
+      
+      // Mettre à jour le cache si on a un groupId
+      // Ne PAS utiliser setMessages ici car cela cause un double appel
+      if (groupId) {
+        // Attendre un peu pour que l'état soit mis à jour
+        setTimeout(() => {
+          const updatedMessage = messagesRef.current.find(m => m.id === messageId)
+          if (updatedMessage) {
+            updateMessageInCache(groupId, messageId, () => updatedMessage)
+            // Stocker le changement local en cas de rechargement imminent
+            pendingLocalChangesRef.current.set(messageId, {
+              reactions: updatedMessage.reactions
+            })
+            // Nettoyer après 3 secondes
+            setTimeout(() => {
+              pendingLocalChangesRef.current.delete(messageId)
+            }, 3000)
+          }
+        }, 50)
+      }
+      
+      // Ne pas utiliser setMessages pour logger après
+      
+      return true
+      
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erreur inconnue')
+      return false
+    }
+  }, [groupId, updateMessageInCache])
+
   // Ajouter une réaction
   const addReaction = useCallback(async (
     messageId: string,
     emoji: string,
     emojiName?: string
   ): Promise<boolean> => {
+    console.log('[AddReaction] Start', { messageId, emoji, emojiName })
+    
+    // D'ABORD faire l'appel API
     try {
       const response = await fetch('/api/chat/reactions', {
         method: 'POST',
@@ -523,35 +671,143 @@ export function useNativeChat(groupId: string | null, shouldIncrementUnread?: ()
         const error = await response.json()
         // Si déjà réagi, retirer la réaction
         if (error.error === 'Réaction déjà ajoutée') {
+          console.log('[AddReaction] Already reacted, removing instead')
           return removeReaction(messageId, emoji)
         }
         throw new Error(error.error || 'Erreur lors de l\'ajout de la réaction')
       }
       
-      return true
+      console.log('[AddReaction] API call successful')
       
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erreur inconnue')
-      return false
-    }
-  }, [])
-  
-  // Retirer une réaction
-  const removeReaction = useCallback(async (
-    messageId: string,
-    emoji: string
-  ): Promise<boolean> => {
-    try {
-      const response = await fetch(
-        `/api/chat/reactions?message_id=${messageId}&emoji=${encodeURIComponent(emoji)}`,
-        {
-          method: 'DELETE',
-          credentials: 'include'
-        }
-      )
+      // Récupérer le nom de l'utilisateur actuel
+      const currentUserId = currentUserIdRef.current
+      if (!currentUserId) {
+        console.error('No current user ID found')
+        return false
+      }
       
-      if (!response.ok) {
-        throw new Error('Erreur lors du retrait de la réaction')
+      console.log('[AddReaction] Current user ID:', currentUserId)
+      
+      // Marquer ce changement comme local pour éviter le reload depuis realtime
+      const changeKey = `${messageId}-${emoji}-${currentUserId}-add`
+      localReactionChangesRef.current.add(changeKey)
+      console.log('Marked as local change:', changeKey)
+      
+      // Nettoyer après 3 secondes
+      setTimeout(() => {
+        localReactionChangesRef.current.delete(changeKey)
+        console.log('Cleaned local change marker:', changeKey)
+      }, 3000)
+      
+      // Obtenir le nom de l'utilisateur depuis messagesRef
+      const currentMessages = messagesRef.current
+      const userMessage = currentMessages.find(m => m.user_id === currentUserId)
+      const currentUserName = userMessage?.member 
+        ? `${userMessage.member.first_name} ${userMessage.member.last_name}`
+        : 'Vous'
+      
+      // Mettre à jour l'état local immédiatement
+      setMessages(prev => {
+        console.log('[AddReaction] Inside setMessages, prev messages count:', prev.length)
+        
+        // IMPORTANT: Créer de nouveaux objets à TOUS les niveaux pour que React détecte les changements
+        const updated = prev.map(msg => {
+          if (msg.id !== messageId) {
+            return msg // Ne pas toucher aux autres messages
+          }
+          
+          console.log('[AddReaction] Found message to update, current reactions:', msg.reactions)
+          
+          // IMPORTANT: Toujours vérifier l'état actuel pour éviter les doublons
+          const existingReaction = msg.reactions?.find(r => r.emoji === emoji)
+          
+          if (existingReaction) {
+            // Vérifier si l'utilisateur n'a pas déjà réagi (protection contre le double appel)
+            const alreadyReacted = existingReaction.users.some(u => u.id === currentUserId)
+            if (alreadyReacted) {
+              console.log('[AddReaction] User already reacted (protection contre double appel), skipping')
+              return msg
+            }
+            
+            console.log('[AddReaction] Adding user to existing reaction')
+            // Créer un NOUVEAU tableau de réactions avec de NOUVEAUX objets
+            const updatedReactions = msg.reactions.map(reaction => {
+              if (reaction.emoji === emoji) {
+                const newUsers = [...reaction.users, { 
+                  id: currentUserId, 
+                  name: currentUserName,
+                  photo_url: null // Ajouter pour cohérence
+                }]
+                // Créer un NOUVEL objet réaction
+                const updatedReaction = {
+                  emoji: reaction.emoji,
+                  emoji_name: reaction.emoji_name,
+                  users: newUsers,
+                  count: newUsers.length
+                }
+                console.log('[AddReaction] Reaction before:', reaction)
+                console.log('[AddReaction] Reaction after:', updatedReaction)
+                return updatedReaction
+              }
+              // Retourner la réaction telle quelle (pas de copie si pas modifiée)
+              return reaction
+            })
+            
+            // Créer un NOUVEAU message avec les nouvelles réactions
+            const updatedMsg = {
+              ...msg,
+              reactions: updatedReactions
+            }
+            console.log('[AddReaction] Updated message with existing reaction:', updatedMsg.reactions)
+            return updatedMsg
+          } else {
+            // Nouvelle réaction
+            console.log('[AddReaction] Creating new reaction')
+            const newReaction = {
+              emoji,
+              emoji_name: emojiName || emoji,
+              users: [{ 
+                id: currentUserId, 
+                name: currentUserName,
+                photo_url: null
+              }],
+              count: 1
+            }
+            // Créer un NOUVEAU message avec la nouvelle réaction
+            const updatedMsg = {
+              ...msg,
+              reactions: [...(msg.reactions || []), newReaction]
+            }
+            console.log('[AddReaction] Updated message with new reaction:', updatedMsg.reactions)
+            return updatedMsg
+          }
+        })
+        
+        console.log('[AddReaction] Messages after map, updated[0]:', updated.find(m => m.id === messageId)?.reactions)
+        
+        // NE PAS mettre à jour le cache ici, le faire après que l'état soit mis à jour
+        
+        console.log('[AddReaction] Returning updated messages')
+        return updated
+      })
+      
+      // Mettre à jour le cache après que l'état soit mis à jour
+      if (groupId) {
+        setTimeout(() => {
+          const updatedMessage = messagesRef.current.find(m => m.id === messageId)
+          if (updatedMessage) {
+            console.log('[AddReaction] Updating cache with:', updatedMessage.reactions)
+            updateMessageInCache(groupId, messageId, () => updatedMessage)
+            // Stocker le changement local en cas de rechargement imminent
+            pendingLocalChangesRef.current.set(messageId, {
+              reactions: updatedMessage.reactions
+            })
+            // Nettoyer après 3 secondes
+            setTimeout(() => {
+              pendingLocalChangesRef.current.delete(messageId)
+            }, 3000)
+          }
+        }, 50)
       }
       
       return true
@@ -560,7 +816,7 @@ export function useNativeChat(groupId: string | null, shouldIncrementUnread?: ()
       setError(err instanceof Error ? err.message : 'Erreur inconnue')
       return false
     }
-  }, [])
+  }, [groupId, removeReaction, updateMessageInCache])
   
   // Signaler qu'on est en train de taper
   const setTyping = useCallback(async (isTyping: boolean) => {
@@ -1018,10 +1274,36 @@ export function useNativeChat(groupId: string | null, shouldIncrementUnread?: ()
           schema: 'public',
           table: 'chat_reactions'
         },
-        async () => {
-          // Recharger les messages pour mettre à jour les réactions
-          // (ou implémenter une logique plus fine)
-          await loadMessages()
+        async (payload: RealtimePostgresChangesPayload<any>) => {
+          const messageId = payload.new?.message_id || payload.old?.message_id
+          const emoji = payload.new?.emoji || payload.old?.emoji
+          const changeUserId = payload.new?.user_id || payload.old?.user_id
+          const eventType = payload.eventType === 'INSERT' ? 'add' : payload.eventType === 'DELETE' ? 'remove' : 'update'
+          
+          // Vérifier si c'est un changement local qu'on a déjà traité
+          const changeKey = `${messageId}-${emoji}-${changeUserId}-${eventType}`
+          if (localReactionChangesRef.current.has(changeKey)) {
+            console.log('Skipping reload - local change already applied', changeKey)
+            return
+          }
+          
+          // Si c'est notre propre changement mais pas marqué comme local (ne devrait pas arriver)
+          if (changeUserId === currentUserIdRef.current) {
+            console.log('Own change detected but not marked as local, skipping', changeKey)
+            return
+          }
+          
+          // Recharger le message pour mettre à jour ses réactions
+          if (messageId) {
+            console.log('Reloading messages due to reaction change by another user', { changeUserId, currentUserId: currentUserIdRef.current })
+            // Petit délai pour laisser les autres événements arriver
+            setTimeout(async () => {
+              // Vérifier une dernière fois si ce n'est pas un changement local
+              if (!localReactionChangesRef.current.has(changeKey)) {
+                await loadMessages(undefined, true)
+              }
+            }, 100)
+          }
         }
       )
       .on(

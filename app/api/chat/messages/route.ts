@@ -26,6 +26,92 @@ interface ChatMessage {
   metadata?: any
 }
 
+// Fonction helper pour enrichir un message avec ses données associées
+async function enrichMessage(msg: any, supabase: any) {
+  try {
+    // Récupérer les infos du membre
+    const { data: member } = await supabase
+      .from('members')
+      .select('first_name, last_name, photo_url, slack_user_id')
+      .eq('user_id', msg.user_id)
+      .single()
+    
+    // Récupérer les fichiers
+    const { data: files } = await supabase
+      .from('chat_files')
+      .select('*')
+      .eq('message_id', msg.id)
+    
+    // Récupérer les réactions
+    const { data: reactions } = await supabase
+      .from('chat_reactions')
+      .select('*')
+      .eq('message_id', msg.id)
+    
+    // Récupérer les mentions
+    const { data: mentions } = await supabase
+      .from('chat_mentions')
+      .select('*')
+      .eq('message_id', msg.id)
+    
+    // Grouper les réactions par emoji
+    const reactionGroups = reactions?.reduce((acc: any, reaction: any) => {
+      if (!acc[reaction.emoji]) {
+        acc[reaction.emoji] = {
+          emoji: reaction.emoji,
+          emoji_name: reaction.emoji_name,
+          users: [],
+          count: 0
+        }
+      }
+      acc[reaction.emoji].users.push({
+        id: reaction.user_id,
+        name: 'Utilisateur' // Nom par défaut
+      })
+      acc[reaction.emoji].count++
+      return acc
+    }, {})
+    
+    // Si des réactions existent, récupérer les noms des utilisateurs
+    if (reactionGroups) {
+      for (const emoji in reactionGroups) {
+        const userIds = reactionGroups[emoji].users.map((u: any) => u.id)
+        const { data: reactionMembers } = await supabase
+          .from('members')
+          .select('user_id, first_name, last_name')
+          .in('user_id', userIds)
+        
+        if (reactionMembers) {
+          reactionGroups[emoji].users = reactionGroups[emoji].users.map((u: any) => {
+            const member = reactionMembers.find((m: any) => m.user_id === u.id)
+            return {
+              id: u.id,
+              name: member ? `${member.first_name} ${member.last_name}` : 'Utilisateur'
+            }
+          })
+        }
+      }
+    }
+    
+    return {
+      ...msg,
+      member,
+      files: files || [],
+      reactions: Object.values(reactionGroups || {}),
+      mentions: mentions || []
+    }
+  } catch (err) {
+    // Retourner le message sans enrichissement en cas d'erreur
+    return {
+      ...msg,
+      member: null,
+      files: [],
+      reactions: [],
+      mentions: []
+    }
+  }
+}
+
 // GET /api/chat/messages - Récupérer les messages d'un groupe
 export async function GET(request: NextRequest) {
   try {
@@ -46,6 +132,8 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '50')
     const before = searchParams.get('before') // Message ID pour la pagination
     const threadTs = searchParams.get('thread_ts') // Pour récupérer les réponses d'un thread
+    const messageId = searchParams.get('message_id') // Pour récupérer un seul message
+    const single = searchParams.get('single') === 'true' // Flag pour récupérer un seul message
     
     if (!groupId) {
       return NextResponse.json({ error: 'group_id requis' }, { status: 400 })
@@ -65,6 +153,25 @@ export async function GET(request: NextRequest) {
     
     if (!membership) {
       return NextResponse.json({ error: 'Accès non autorisé' }, { status: 403 })
+    }
+    
+    // Si on demande un seul message
+    if (single && messageId) {
+      const { data: message, error } = await supabase
+        .from('chat_messages')
+        .select('*')
+        .eq('id', messageId)
+        .eq('group_id', groupId)
+        .single()
+      
+      if (error || !message) {
+        return NextResponse.json({ error: 'Message non trouvé' }, { status: 404 })
+      }
+      
+      // Enrichir le message avec les données associées
+      const formattedMessage = await enrichMessage(message, supabase)
+      
+      return NextResponse.json({ message: formattedMessage })
     }
     
     // Construire la requête pour les messages - simplifiée d'abord
@@ -104,88 +211,7 @@ export async function GET(request: NextRequest) {
     }
     
     // Enrichir les messages avec les données associées
-    const formattedMessages = await Promise.all((messages || []).map(async (msg) => {
-      try {
-        // Récupérer les infos du membre
-        const { data: member } = await supabase
-          .from('members')
-          .select('first_name, last_name, photo_url, slack_user_id')
-          .eq('user_id', msg.user_id)
-          .single()
-      
-      // Récupérer les fichiers
-      const { data: files } = await supabase
-        .from('chat_files')
-        .select('*')
-        .eq('message_id', msg.id)
-      
-      // Récupérer les réactions
-      const { data: reactions } = await supabase
-        .from('chat_reactions')
-        .select('*')
-        .eq('message_id', msg.id)
-      
-      // Récupérer les mentions
-      const { data: mentions } = await supabase
-        .from('chat_mentions')
-        .select('*')
-        .eq('message_id', msg.id)
-      
-      // Grouper les réactions par emoji
-      const reactionGroups = reactions?.reduce((acc: any, reaction: any) => {
-        if (!acc[reaction.emoji]) {
-          acc[reaction.emoji] = {
-            emoji: reaction.emoji,
-            emoji_name: reaction.emoji_name,
-            users: [],
-            count: 0
-          }
-        }
-        acc[reaction.emoji].users.push({
-          id: reaction.user_id,
-          name: 'Utilisateur' // Nom par défaut
-        })
-        acc[reaction.emoji].count++
-        return acc
-      }, {})
-      
-      // Si des réactions existent, récupérer les noms des utilisateurs
-      if (reactionGroups) {
-        for (const emoji in reactionGroups) {
-          const userIds = reactionGroups[emoji].users.map((u: any) => u.id)
-          const { data: reactionMembers } = await supabase
-            .from('members')
-            .select('user_id, first_name, last_name, photo_url')
-            .in('user_id', userIds)
-          
-          if (reactionMembers) {
-            reactionGroups[emoji].users = reactionMembers.map(m => ({
-              id: m.user_id,
-              name: `${m.first_name} ${m.last_name}`,
-              photo_url: m.photo_url
-            }))
-          }
-        }
-      }
-      
-        return {
-          ...msg,
-          member,
-          files: files || [],
-          reactions: reactionGroups ? Object.values(reactionGroups) : [],
-          mentions: mentions || []
-        }
-      } catch (enrichError) {
-        // Retourner le message sans enrichissement en cas d'erreur
-        return {
-          ...msg,
-          member: null,
-          files: [],
-          reactions: [],
-          mentions: []
-        }
-      }
-    }))
+    const formattedMessages = await Promise.all((messages || []).map(msg => enrichMessage(msg, supabase)))
     
     // Mettre à jour le statut de lecture
     if (messages && messages.length > 0) {

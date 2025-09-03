@@ -20,26 +20,27 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'message_id et emoji requis' }, { status: 400 })
     }
     
-    // Vérifier que le message existe et que l'utilisateur a accès
+    // Vérifier que le message existe
     const { data: message } = await supabase
       .from('chat_messages')
-      .select(`
-        id,
-        group_id,
-        slack_ts,
-        slack_channel_id,
-        groups!inner (
-          user_groups!inner (
-            user_id
-          )
-        )
-      `)
+      .select('id, group_id, slack_ts, slack_channel_id')
       .eq('id', message_id)
-      .eq('groups.user_groups.user_id', user.id)
       .single()
     
     if (!message) {
-      return NextResponse.json({ error: 'Message non trouvé ou accès refusé' }, { status: 404 })
+      return NextResponse.json({ error: 'Message non trouvé' }, { status: 404 })
+    }
+    
+    // Vérifier que l'utilisateur a accès au groupe
+    const { data: userGroup } = await supabase
+      .from('user_groups')
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('group_id', message.group_id)
+      .single()
+    
+    if (!userGroup) {
+      return NextResponse.json({ error: 'Accès refusé au groupe' }, { status: 403 })
     }
     
     // Ajouter la réaction

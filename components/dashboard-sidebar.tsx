@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { MessageSquare, Calendar } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
-export type DashboardView = 'slack' | 'events'
+export type DashboardView = 'discussions' | 'events'
 
 interface DashboardSidebarProps {
   currentView: DashboardView
@@ -14,8 +14,8 @@ interface DashboardSidebarProps {
 export function DashboardSidebar({ currentView, onViewChange }: DashboardSidebarProps) {
   const menuItems = [
     {
-      id: 'slack' as DashboardView,
-      label: 'Slack',
+      id: 'discussions' as DashboardView,
+      label: 'Discussions',
       icon: MessageSquare
     },
     {
