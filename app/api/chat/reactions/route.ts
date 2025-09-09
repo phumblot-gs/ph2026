@@ -266,7 +266,37 @@ async function syncReactionToSlack(
     const slack = new WebClient(botToken.setting_value)
     
     // Nettoyer le nom de l'emoji (enlever les : si présents)
-    const cleanEmoji = emoji.replace(/^:/, '').replace(/:$/, '')
+    let cleanEmoji = emoji.replace(/^:/, '').replace(/:$/, '')
+    
+    // Mapping des emojis Unicode vers les noms Slack
+    const emojiMap: { [key: string]: string } = {
+      '❤️': 'heart',
+      '❤': 'heart',
+      '👍': 'thumbsup',
+      '👎': 'thumbsdown',
+      '😂': 'joy',
+      '😢': 'sob',
+      '😍': 'heart_eyes',
+      '😡': 'rage',
+      '🎉': 'tada',
+      '🔥': 'fire',
+      '💯': '100',
+      '✅': 'white_check_mark',
+      '❌': 'x',
+      '⭐': 'star',
+      '💪': 'muscle'
+    }
+    
+    // Si c'est un emoji Unicode, le convertir en nom Slack
+    if (emojiMap[cleanEmoji]) {
+      cleanEmoji = emojiMap[cleanEmoji]
+    }
+    
+    // Valider que le nom ne contient que des caractères autorisés (lettres, chiffres, underscore)
+    if (!/^[a-zA-Z0-9_+-]+$/.test(cleanEmoji)) {
+      console.log(`Emoji non valide pour Slack: "${cleanEmoji}", skip sync`)
+      return
+    }
     
     if (action === 'add') {
       await slack.reactions.add({

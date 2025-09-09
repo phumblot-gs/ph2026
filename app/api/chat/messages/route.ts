@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { WebClient } from '@slack/web-api'
+import { formatSlackMessage, markdownToSlack } from '@/lib/slack-formatter'
 import { Readable } from 'stream'
 
 // Types
@@ -41,6 +42,29 @@ async function enrichMessage(msg: any, supabase: any) {
       .from('chat_files')
       .select('*')
       .eq('message_id', msg.id)
+    
+    // Générer les URLs signées pour les fichiers
+    const enrichedFiles = await Promise.all((files || []).map(async (file: any) => {
+      // Générer l'URL signée pour le fichier principal
+      const { data: signedUrl } = await supabase.storage
+        .from('chat')
+        .createSignedUrl(file.storage_path, 3600)
+      
+      // Générer l'URL signée pour le thumbnail si applicable
+      let thumbnailUrl = null
+      if (file.thumbnail_path) {
+        const { data: thumbnailSignedUrl } = await supabase.storage
+          .from('chat')
+          .createSignedUrl(file.thumbnail_path, 3600)
+        thumbnailUrl = thumbnailSignedUrl?.signedUrl
+      }
+      
+      return {
+        ...file,
+        url: signedUrl?.signedUrl,
+        thumbnail_url: thumbnailUrl
+      }
+    }))
     
     // Récupérer les réactions
     const { data: reactions } = await supabase
@@ -96,7 +120,7 @@ async function enrichMessage(msg: any, supabase: any) {
     return {
       ...msg,
       member,
-      files: files || [],
+      files: enrichedFiles || [],
       reactions: Object.values(reactionGroups || {}),
       mentions: mentions || []
     }
@@ -216,15 +240,24 @@ export async function GET(request: NextRequest) {
     if (!threadTs && mainMessages && mainMessages.length > 0) {
       // Récupérer toutes les réponses des messages principaux
       const messageIds = mainMessages.map(m => m.id)
-      const { data: threadMessages } = await supabase
+      console.log('DEBUG: Recherche réponses pour messages:', messageIds)
+      const { data: threadMessages, error: threadError } = await supabase
         .from('chat_messages')
         .select('*')
         .in('thread_ts', messageIds)
         .is('deleted_at', null)
         .order('created_at', { ascending: false })
       
-      if (threadMessages) {
-        allMessages = [...mainMessages, ...threadMessages]
+      if (threadError) {
+        console.log('DEBUG: Erreur récupération réponses:', threadError)
+      } else {
+        console.log('DEBUG: Réponses trouvées:', threadMessages?.length || 0, '- NEW VERSION')
+        if (threadMessages) {
+          threadMessages.forEach((t, index) => {
+          console.log(`DEBUG: Réponse ${index + 1}:`, { id: t.id, thread_ts: t.thread_ts, text: t.text?.substring(0, 30) })
+        })
+          allMessages = [...mainMessages, ...threadMessages]
+        }
       }
     }
     
@@ -294,6 +327,9 @@ export async function POST(request: NextRequest) {
       .eq('id', group_id)
       .single()
     
+    // Formater le texte pour l'affichage HTML
+    const formattedText = formatSlackMessage(text, false)
+
     // Créer le message dans la base de données
     const { data: message, error: messageError } = await supabase
       .from('chat_messages')
@@ -301,6 +337,7 @@ export async function POST(request: NextRequest) {
         group_id,
         user_id: user.id,
         text,
+        formatted_text: formattedText,
         thread_ts,
         slack_sync_status: group?.slack_channel_id ? 'pending' : 'none'
       })
@@ -345,6 +382,7 @@ export async function POST(request: NextRequest) {
     }
     
     // Synchroniser avec Slack si configuré
+    console.log('SYNC TO SLACK: Starting sync for message:', message.id, 'thread_ts:', message.thread_ts)
     if (group?.slack_channel_id) {
       syncMessageToSlack(message, group.slack_channel_id, messageFiles).catch(err => {
         // Marquer comme échoué mais ne pas bloquer
@@ -404,11 +442,15 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'Non autorisé' }, { status: 403 })
     }
     
+    // Formater le nouveau texte pour l'affichage HTML
+    const formattedText = formatSlackMessage(text, false)
+
     // Mettre à jour le message
     const { data: message, error } = await supabase
       .from('chat_messages')
       .update({
         text,
+        formatted_text: formattedText,
         edited_at: new Date().toISOString()
       })
       .eq('id', id)
@@ -424,7 +466,7 @@ export async function PUT(request: NextRequest) {
       updateMessageInSlack(
         existingMessage.slack_channel_id,
         existingMessage.slack_ts,
-        text
+        markdownToSlack(text)
       )
     }
     
@@ -604,9 +646,28 @@ async function syncMessageToSlack(message: any, channelId: string, files: any[] 
     type: 'section',
     text: {
       type: 'mrkdwn',
-      text: message.text
+      text: markdownToSlack(message.text)
     }
   })
+  
+  // Récupérer le slack_ts du message parent si c'est une réponse
+  let parentSlackTs: string | undefined = undefined
+  if (message.thread_ts) {
+    console.log('DEBUG: Recherche du message parent pour thread_ts:', message.thread_ts)
+    const { data: parentMessage, error: parentError } = await supabase
+      .from('chat_messages')
+      .select('slack_ts, id')
+      .eq('id', message.thread_ts)
+      .single()
+    
+    if (parentError) {
+      console.log('DEBUG: Erreur recherche message parent:', parentError)
+    } else {
+      console.log('DEBUG: Message parent trouvé:', parentMessage)
+      parentSlackTs = parentMessage?.slack_ts || undefined
+      console.log('DEBUG: parentSlackTs final:', parentSlackTs)
+    }
+  }
   
   // Si on a des fichiers, on utilise files.uploadV2 avec initial_comment
   // Cela crée UN SEUL message avec le fichier et le texte
@@ -635,14 +696,19 @@ async function syncMessageToSlack(message: any, channelId: string, files: any[] 
         
         
         // Upload avec le message texte - cela crée UN SEUL message
-        const uploadResult = await slack.files.uploadV2({
-          channels: channelId,
+        const uploadParams: any = {
+          channel_id: channelId,
           file: stream,
           filename: slackFilename,
           title: fileTitle,
-          initial_comment: message.text,
-          thread_ts: message.thread_ts ? message.thread_ts : undefined
-        })
+          initial_comment: markdownToSlack(message.text)
+        }
+        
+        if (parentSlackTs) {
+          uploadParams.thread_ts = parentSlackTs
+        }
+        
+        const uploadResult = await slack.files.uploadV2(uploadParams)
         
         if (uploadResult.ok) {
           
@@ -734,13 +800,18 @@ async function syncMessageToSlack(message: any, channelId: string, files: any[] 
             const buffer = Buffer.from(await fileData.arrayBuffer())
             const stream = Readable.from(buffer)
             
-            await slack.files.uploadV2({
-              channels: channelId,
+            const fileUploadParams: any = {
+              channel_id: channelId,
               file: stream,
               filename: file.original_name || file.name,
-              title: file.original_name || file.name,
-              thread_ts: message.thread_ts
-            })
+              title: file.original_name || file.name
+            }
+            
+            if (parentSlackTs) {
+              fileUploadParams.thread_ts = parentSlackTs
+            }
+            
+            await slack.files.uploadV2(fileUploadParams)
           }
         } catch (err) {
         }
@@ -754,8 +825,8 @@ async function syncMessageToSlack(message: any, channelId: string, files: any[] 
     const result = await slack.chat.postMessage({
       channel: channelId,
       blocks: blocks,
-      text: message.text,
-      thread_ts: message.thread_ts ? message.thread_ts : undefined
+      text: markdownToSlack(message.text),
+      thread_ts: parentSlackTs
     })
     
     slackTs = result.ts
