@@ -29,11 +29,18 @@ export function parseSlackMarkdown(text: string): string {
     return `#${channelName}`
   })
   
-  // Parse URLs <http://example.com|text> to clickable links
+  // Parse URLs <http://example.com|text> to clickable links (Slack format)
   // Les liens doivent s'ouvrir dans un nouvel onglet
   formatted = formatted.replace(/<(https?:\/\/[^|>]+)(\|([^>]+))?>/g, (match, url, pipe, text) => {
     const displayText = text || url
     return `<a href="${url}" target="_blank" rel="noopener noreferrer" class="text-blue-600 underline hover:text-blue-800">${displayText}</a>`
+  })
+  
+  // Parse Markdown links [text](url) to clickable links
+  formatted = formatted.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (match, text, url) => {
+    // Ajouter https:// si l'URL ne commence pas par http:// ou https://
+    const fullUrl = url.startsWith('http') ? url : `https://${url}`
+    return `<a href="${fullUrl}" target="_blank" rel="noopener noreferrer" class="text-blue-600 underline hover:text-blue-800">${text}</a>`
   })
   
   // Parse code blocks FIRST (before other formatting) ```text```
@@ -42,14 +49,15 @@ export function parseSlackMarkdown(text: string): string {
   // Parse inline code `text` (Slack uses ` for inline code)
   formatted = formatted.replace(/`([^`]+)`/g, '<code class="bg-gray-100 px-1 rounded text-sm">$1</code>')
   
-  // Parse bold *text* (Slack uses * for bold)
-  // Utiliser une regex non-greedy pour éviter de capturer trop
+  // Parse bold **text** (Markdown standard) FIRST, then *text* (Slack format)
+  formatted = formatted.replace(/\*\*([^*]+?)\*\*/g, '<strong>$1</strong>')
   formatted = formatted.replace(/\*([^*]+?)\*/g, '<strong>$1</strong>')
   
-  // Parse italic _text_ (Slack uses _ for italic)
+  // Parse italic _text_ (both Markdown and Slack use _)
   formatted = formatted.replace(/_([^_]+?)_/g, '<em>$1</em>')
   
-  // Parse strikethrough ~text~ (Slack uses ~ for strikethrough)
+  // Parse strikethrough ~~text~~ (Markdown) FIRST, then ~text~ (Slack)
+  formatted = formatted.replace(/~~([^~]+?)~~/g, '<del>$1</del>')
   formatted = formatted.replace(/~([^~]+?)~/g, '<del>$1</del>')
   
   // Parse blockquotes > text (Slack uses > for quotes)
@@ -151,6 +159,10 @@ export function parseSlackMarkdown(text: string): string {
     // Pour les autres lignes, ajouter <br> sauf pour la dernière ligne
     return index < array.length - 1 ? line + '<br>' : line
   }).join('')
+  
+  // Nettoyer les entités HTML indésirables
+  formatted = formatted.replace(/&#32;/g, ' ') // Remplacer les espaces encodés
+  formatted = formatted.replace(/&nbsp;/g, ' ') // Remplacer les espaces insécables
   
   return formatted
 }
@@ -257,4 +269,47 @@ export function formatSlackMessagePreview(text: string, maxLength: number = 100)
   }
   
   return formatted
+}
+
+/**
+ * Convert markdown text to Slack-compatible mrkdwn format
+ */
+export function markdownToSlack(markdown: string): string {
+  if (!markdown) return ''
+  
+  let slackFormat = markdown
+  
+  // Convert links FIRST to avoid conflicts: [text](url) -> <url|text>
+  slackFormat = slackFormat.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (match, text, url) => {
+    // Ajouter https:// si l'URL ne commence pas par http:// ou https://
+    const fullUrl = url.startsWith('http') ? url : `https://${url}`
+    return `<${fullUrl}|${text}>`
+  })
+  
+  // Convert strikethrough FIRST: ~~text~~ -> ~text~
+  slackFormat = slackFormat.replace(/~~([^~]+?)~~/g, '~$1~')
+  
+  // Convert bold: **text** or __text__ -> *text* (Slack format for bold)
+  slackFormat = slackFormat.replace(/\*\*([^*]+?)\*\*/g, '*$1*')
+  slackFormat = slackFormat.replace(/__([^_]+?)__/g, '*$1*')
+  
+  // Convert italic: _text_ -> _text_ (same in both Markdown and Slack)
+  // Single underscores are the same format in both Markdown and Slack for italic
+  
+  // Convert code blocks: ```code``` -> ```code``` (same format)
+  // Already compatible
+  
+  // Convert inline code: `code` -> `code` (same format)
+  // Already compatible
+  
+  // Convert blockquotes: > text -> > text (same format)
+  // Already compatible
+  
+  // Convert lists: - item or * item -> • item
+  slackFormat = slackFormat.replace(/^[\s]*[-*]\s+(.+)$/gm, '• $1')
+  
+  // Convert numbered lists: 1. item -> 1. item (same format)
+  // Already compatible
+  
+  return slackFormat
 }

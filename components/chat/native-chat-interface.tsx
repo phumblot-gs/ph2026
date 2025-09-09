@@ -47,6 +47,11 @@ const EditingWidget = ({ initialText, onSave, onCancel }: {
   const editorRef = useRef<any>(null)
   
   console.log('🔧 EditingWidget - text state:', text)
+  
+  // Mettre à jour le state quand initialText change
+  useEffect(() => {
+    setText(initialText)
+  }, [initialText])
 
   const handleSave = async () => {
     if (!text.trim()) return
@@ -55,12 +60,25 @@ const EditingWidget = ({ initialText, onSave, onCancel }: {
     setSaving(false)
   }
 
-  // Focus l'éditeur au montage
+  // Focus l'éditeur au montage et gérer Escape
   useEffect(() => {
     setTimeout(() => {
       editorRef.current?.focus()
     }, 200)
-  }, [])
+    
+    // Ajouter un event listener pour Escape
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        onCancel()
+      }
+    }
+    
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [onCancel])
 
   return (
     <div className="space-y-2">
@@ -108,7 +126,7 @@ const EditingWidget = ({ initialText, onSave, onCancel }: {
         
         <div className="flex justify-between items-center mt-3">
           <div className="text-xs text-gray-500">
-            Ctrl+Enter pour enregistrer • Escape pour annuler
+            Enter pour enregistrer • Escape pour annuler
           </div>
           <div className="flex gap-2">
             <Button
@@ -140,45 +158,6 @@ function NativeChatInterface({
     setMounted(true)
   }, [])
 
-  // Auto-focus sur le champ de texte quand on tape
-  useEffect(() => {
-    const handleGlobalKeyPress = (e: KeyboardEvent) => {
-      // Ignorer si on est déjà dans un champ de saisie
-      const target = e.target as HTMLElement
-      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.contentEditable === 'true') {
-        return
-      }
-      
-      // Ignorer les touches de contrôle et les raccourcis
-      if (e.ctrlKey || e.metaKey || e.altKey) {
-        return
-      }
-      
-      // Ignorer certaines touches spéciales
-      const ignoredKeys = ['Tab', 'Escape', 'Enter', 'Shift', 'Control', 'Alt', 'Meta', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'PageUp', 'PageDown', 'Home', 'End', 'F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8', 'F9', 'F10', 'F11', 'F12']
-      if (ignoredKeys.includes(e.key)) {
-        return
-      }
-      
-      // Donner le focus à l'éditeur et insérer le caractère tapé
-      if (editorRef.current?.focus) {
-        editorRef.current.focus()
-        
-        // Si c'est une lettre, un chiffre ou un caractère imprimable, l'ajouter au texte
-        if (e.key.length === 1) {
-          // Ajouter le caractère tapé au texte existant
-          setMessageText(prev => prev + e.key)
-          // Empêcher le comportement par défaut
-          e.preventDefault()
-        }
-      }
-    }
-
-    window.addEventListener('keydown', handleGlobalKeyPress)
-    return () => {
-      window.removeEventListener('keydown', handleGlobalKeyPress)
-    }
-  }, [])
 
   // Refs pour le scroll - définis avant car utilisés dans les callbacks
   const scrollAreaRef = useRef<HTMLDivElement>(null)
@@ -250,6 +229,51 @@ function NativeChatInterface({
   const [isDragging, setIsDragging] = useState(false)
   const dragCounterRef = useRef(0) // Pour gérer les entrées/sorties multiples du drag
   const messagesRef = useRef(messages) // Référence aux messages pour éviter les closures
+
+  // Auto-focus sur le champ de texte quand on tape
+  useEffect(() => {
+    const handleGlobalKeyPress = (e: KeyboardEvent) => {
+      // Ignorer si un message est en cours d'édition
+      if (editingMessageId) {
+        return
+      }
+      
+      // Ignorer si on est déjà dans un champ de saisie
+      const target = e.target as HTMLElement
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.contentEditable === 'true') {
+        return
+      }
+      
+      // Ignorer les touches de contrôle et les raccourcis
+      if (e.ctrlKey || e.metaKey || e.altKey) {
+        return
+      }
+      
+      // Ignorer certaines touches spéciales
+      const ignoredKeys = ['Tab', 'Escape', 'Enter', 'Shift', 'Control', 'Alt', 'Meta', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'PageUp', 'PageDown', 'Home', 'End', 'F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8', 'F9', 'F10', 'F11', 'F12']
+      if (ignoredKeys.includes(e.key)) {
+        return
+      }
+      
+      // Donner le focus à l'éditeur et insérer le caractère tapé
+      if (editorRef.current?.focus) {
+        editorRef.current.focus()
+        
+        // Si c'est une lettre, un chiffre ou un caractère imprimable, l'ajouter au texte
+        if (e.key.length === 1) {
+          // Ajouter le caractère tapé au texte existant
+          setMessageText(prev => prev + e.key)
+          // Empêcher le comportement par défaut
+          e.preventDefault()
+        }
+      }
+    }
+
+    window.addEventListener('keydown', handleGlobalKeyPress)
+    return () => {
+      window.removeEventListener('keydown', handleGlobalKeyPress)
+    }
+  }, [editingMessageId])
   
   // Mettre à jour la référence quand les messages changent
   useEffect(() => {
@@ -809,7 +833,7 @@ function NativeChatInterface({
                 // Si le message commence par 📎 ou 🎤, le rendre petit et estompé
                 (message.text.startsWith('📎') || message.text.startsWith('🎤')) ? "text-xs text-gray-500" : "text-sm"
               )}
-              dangerouslySetInnerHTML={{ __html: formatSlackMessage(message.formatted_text || message.text) }}
+              dangerouslySetInnerHTML={{ __html: message.formatted_text || formatSlackMessage(message.text) }}
             />
           )}
 
@@ -1055,8 +1079,22 @@ function NativeChatInterface({
     new Map(messages.map(msg => [msg.id, msg])).values()
   )
   
+  // DEBUG: Logs pour le groupement des messages
+  console.log('DEBUG FRONTEND: Nombre de messages uniques:', uniqueMessages.length)
+  const messagesWithThreads = uniqueMessages.filter(m => m.thread_ts)
+  console.log('DEBUG FRONTEND: Messages avec thread_ts:', messagesWithThreads.length, messagesWithThreads.map(m => ({ id: m.id, thread_ts: m.thread_ts, text: m.text?.substring(0, 30) })))
+  
   // Grouper les messages par thread et par utilisateur
-  const messageGroups = uniqueMessages.reduce((acc, message, index) => {
+  // Trier les messages pour traiter les parents avant les réponses
+  const sortedMessages = uniqueMessages.sort((a, b) => {
+    // Messages sans thread_ts (parents) en premier
+    if (!a.thread_ts && b.thread_ts) return -1
+    if (a.thread_ts && !b.thread_ts) return 1
+    // Pour le reste, maintenir l'ordre original
+    return 0
+  })
+
+  const messageGroups = sortedMessages.reduce((acc, message, index) => {
     if (!message.thread_ts) {
       // Message principal
       // Vérifier si on peut grouper avec le dernier groupe existant
@@ -1078,11 +1116,17 @@ function NativeChatInterface({
       }
     } else {
       // Réponse dans un thread
+      console.log('DEBUG: Traitement réponse', { id: message.id, thread_ts: message.thread_ts, text: message.text?.substring(0, 30) })
       const parentGroup = acc.find(g => 
         g.messages.some(m => m.id === message.thread_ts)
       )
+      console.log('DEBUG: Groupe parent trouvé?', !!parentGroup, 'pour thread_ts:', message.thread_ts)
       if (parentGroup) {
+        console.log('DEBUG: Ajout réponse au groupe parent')
         parentGroup.replies.unshift(message)
+      } else {
+        console.log('DEBUG: PROBLEME - Pas de groupe parent trouvé pour', message.thread_ts)
+        console.log('DEBUG: Groupes existants:', acc.map(g => ({ messageIds: g.messages.map(m => m.id) })))
       }
     }
     return acc

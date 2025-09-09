@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useEffect, useRef, useCallback, forwardRef, useImperativeHandle } from 'react'
-import { $getRoot, $getSelection, $isRangeSelection, FORMAT_TEXT_COMMAND, COMMAND_PRIORITY_LOW, KEY_ENTER_COMMAND, $createParagraphNode, CLEAR_EDITOR_COMMAND, $createLineBreakNode } from 'lexical'
+import { $getRoot, $getSelection, $isRangeSelection, FORMAT_TEXT_COMMAND, COMMAND_PRIORITY_LOW, KEY_ENTER_COMMAND, $createParagraphNode, CLEAR_EDITOR_COMMAND, $createLineBreakNode, $createTextNode } from 'lexical'
 import { 
   $isListNode,
   INSERT_ORDERED_LIST_COMMAND,
@@ -373,26 +373,45 @@ export const LexicalEditor = forwardRef<any, LexicalEditorProps>(({
     }
   }, [value])
 
+  // État pour éviter la réinitialisation après le premier montage
+  const [hasInitialized, setHasInitialized] = useState(false)
+
   // Utiliser useEffect pour l'initialisation au lieu de initialConfig.editorState
   useEffect(() => {
-    if (initialValue && initialValue.trim()) {
+    if (initialValue && initialValue.trim() && !hasInitialized) {
       console.log('🚀 useEffect - Initializing editor with:', initialValue)
-      // Attendre que l'éditeur soit monté
+      // Attendre que l'éditeur soit monté et utiliser l'éditeur Lexical directement
       setTimeout(() => {
-        if (editorRef.current) {
-          try {
-            const contentEditable = editorRef.current
-            if (contentEditable && contentEditable.textContent === '') {
-              console.log('📄 Setting textContent directly')
-              contentEditable.textContent = initialValue
+        const editor = (editorRef.current as any)?.__lexicalEditor
+        if (editor) {
+          console.log('📄 Setting editor state via Lexical API')
+          editor.update(() => {
+            const root = $getRoot()
+            root.clear()
+            
+            // Insérer le contenu initial
+            try {
+              $convertFromMarkdownString(initialValue, SLACK_TRANSFORMERS)
+            } catch (error) {
+              // Si le markdown parsing échoue, utiliser du texte brut
+              const paragraph = $createParagraphNode()
+              paragraph.append($createTextNode(initialValue))
+              root.append(paragraph)
             }
-          } catch (error) {
-            console.log('Erreur initialisation:', error)
+          })
+          setHasInitialized(true)
+        } else if (editorRef.current) {
+          // Fallback: définir directement le textContent
+          const contentEditable = editorRef.current
+          if (contentEditable && contentEditable.textContent === '') {
+            console.log('📄 Fallback: Setting textContent directly')
+            contentEditable.textContent = initialValue
+            setHasInitialized(true)
           }
         }
       }, 100)
     }
-  }, [initialValue])
+  }, [initialValue, hasInitialized])
 
   const initialConfig: InitialConfigType = {
     namespace: 'ChatEditor',

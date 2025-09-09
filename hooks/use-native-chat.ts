@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { RealtimeChannel, RealtimePostgresChangesPayload } from '@supabase/supabase-js'
 import { useChatCache } from './use-chat-cache'
+import { formatSlackMessage } from '@/lib/slack-formatter'
 
 // Types
 export interface ChatMessage {
