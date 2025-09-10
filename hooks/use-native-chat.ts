@@ -96,6 +96,7 @@ export function useNativeChat(groupId: string | null, shouldIncrementUnread?: ()
   const [typingUsers, setTypingUsers] = useState<TypingUser[]>([])
   const [hasMore, setHasMore] = useState(true)
   const [sendingMessage, setSendingMessage] = useState(false)
+  const [wsConnected, setWsConnected] = useState(false)
   
   const supabase = useMemo(() => createClient(), [])
   const channelRef = useRef<RealtimeChannel | null>(null)
@@ -103,7 +104,10 @@ export function useNativeChat(groupId: string | null, shouldIncrementUnread?: ()
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null)
   const currentUserIdRef = useRef<string | null>(null)
   const syncIntervalRef = useRef<NodeJS.Timeout | null>(null)
-  const loadMessagesRef = useRef<(groupId: string) => void>(() => {})
+  const fallbackPollingRef = useRef<NodeJS.Timeout | null>(null)
+  const lastMessageTimeRef = useRef<number>(Date.now())
+  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const loadMessagesRef = useRef<() => void>(() => {})
   const processedMessagesRef = useRef<Set<string>>(new Set()) // Pour éviter les doublons d'incrémentation
   const localReactionChangesRef = useRef<Set<string>>(new Set()) // Pour tracker les changements locaux de réactions
   const pendingLocalChangesRef = useRef<Map<string, any>>(new Map()) // Pour stocker les changements locaux en attente
@@ -903,11 +907,83 @@ export function useNativeChat(groupId: string | null, shouldIncrementUnread?: ()
     }
   }, [groupId])
   
+  // Fonction de reconnexion WebSocket
+  const reconnectWebSocket = useCallback(() => {
+    if (!groupId || !channelRef.current) return
+    
+    console.log('🔄 Tentative de reconnexion WebSocket...')
+    
+    // Nettoyer l'ancienne connexion
+    supabase.removeChannel(channelRef.current)
+    
+    // Recréer le canal (la logique sera dupliquée depuis le useEffect principal)
+    const channel = supabase
+      .channel(`chat:${groupId}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'chat_messages', filter: `group_id=eq.${groupId}` }, () => {
+        setWsConnected(true)
+        lastMessageTimeRef.current = Date.now()
+      })
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('✅ WebSocket reconnecté')
+          setWsConnected(true)
+          lastMessageTimeRef.current = Date.now()
+        } else {
+          console.log('❌ Échec reconnexion WebSocket:', status)
+          setWsConnected(false)
+        }
+      })
+    
+    channelRef.current = channel
+  }, [groupId, supabase])
+  
+  // Système de fallback intelligent
+  useEffect(() => {
+    if (!groupId) return
+    
+    const startFallbackPolling = () => {
+      if (fallbackPollingRef.current) {
+        clearInterval(fallbackPollingRef.current)
+      }
+      
+      fallbackPollingRef.current = setInterval(() => {
+        // Polling adaptatif : plus fréquent si WebSocket down
+        const pollingInterval = wsConnected ? 60000 : 15000 // 1min si OK, 15s si KO
+        
+        // Vérifier s'il y a de nouveaux messages en background
+        loadMessagesFromAPI(groupId, undefined, true) // background refresh
+        
+        // Retry WebSocket si down depuis plus de 30s
+        if (!wsConnected && Date.now() - lastMessageTimeRef.current > 30000) {
+          if (reconnectTimeoutRef.current) {
+            clearTimeout(reconnectTimeoutRef.current)
+          }
+          
+          reconnectTimeoutRef.current = setTimeout(() => {
+            reconnectWebSocket()
+          }, 1000)
+        }
+      }, wsConnected ? 60000 : 15000)
+    }
+    
+    startFallbackPolling()
+    
+    return () => {
+      if (fallbackPollingRef.current) {
+        clearInterval(fallbackPollingRef.current)
+      }
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current)
+      }
+    }
+  }, [groupId, wsConnected, reconnectWebSocket, loadMessagesFromAPI])
+  
   // Configuration Realtime
   useEffect(() => {
     if (!groupId) {
       return
     }
+    
     
     // Nettoyer l'ancienne connexion
     if (channelRef.current) {
@@ -935,6 +1011,10 @@ export function useNativeChat(groupId: string | null, shouldIncrementUnread?: ()
         },
         async (payload: RealtimePostgresChangesPayload<any>) => {
           const newMessage = payload.new as ChatMessage
+          
+          // Marquer WebSocket comme actif
+          setWsConnected(true)
+          lastMessageTimeRef.current = Date.now()
           
           // Si c'est notre propre message, attendre un peu pour que les fichiers soient insérés
           
@@ -1324,7 +1404,15 @@ export function useNativeChat(groupId: string | null, shouldIncrementUnread?: ()
           }
         }
       )
-      .subscribe()
+    
+    channel.subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          setWsConnected(true)
+          lastMessageTimeRef.current = Date.now()
+        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+          setWsConnected(false)
+        }
+      })
     
     channelRef.current = channel
     
@@ -1372,6 +1460,7 @@ export function useNativeChat(groupId: string | null, shouldIncrementUnread?: ()
     typingUsers,
     hasMore,
     sendingMessage,
+    wsConnected,
     
     // Actions
     loadMessages,

@@ -292,8 +292,9 @@ async function syncReactionToSlack(
       cleanEmoji = emojiMap[cleanEmoji]
     }
     
-    // Valider que le nom ne contient que des caractères autorisés (lettres, chiffres, underscore)
-    if (!/^[a-zA-Z0-9_+-]+$/.test(cleanEmoji)) {
+    // Valider que le nom ne contient que des caractères autorisés par Slack
+    // Slack accepte: lettres, chiffres, underscore, tiret, plus
+    if (!/^[a-zA-Z0-9_+\-]+$/.test(cleanEmoji)) {
       console.log(`Emoji non valide pour Slack: "${cleanEmoji}", skip sync`)
       return
     }

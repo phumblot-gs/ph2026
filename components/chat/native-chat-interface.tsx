@@ -2,8 +2,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { useNativeChat } from '@/hooks/use-native-chat'
-import { formatDistanceToNow } from 'date-fns'
-import { fr } from 'date-fns/locale'
+import { shouldGroupMessages } from '@/lib/date-utils'
 import EmojiPicker, { EmojiClickData } from 'emoji-picker-react'
 import { formatSlackMessage } from '@/lib/slack-formatter'
 import { Send, Paperclip, Edit2, Trash2, Reply, X, ChevronDown, ArrowDown, StopCircle } from 'lucide-react'
@@ -16,6 +15,7 @@ import { Input } from '@/components/ui/input'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Spinner } from '@/components/ui/spinner'
+import { formatMessageTimestamp } from '@/lib/date-utils'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 
@@ -741,11 +741,11 @@ function NativeChatInterface({
     return (
       <div
         className={cn(
-          'group flex gap-3 hover:bg-[#f0f1f2] relative',
+          'group flex gap-3 relative',
           showHeader ? 'pt-3' : 'pt-1',
           'px-3 pb-1',
           isReply && 'ml-12 border-l-2 border-gray-200',
-          message.deleted_at && 'opacity-50'
+          message.deleted_at ? 'opacity-60' : 'hover:bg-[#f0f1f2]'
         )}
       >
         {!isReply && showHeader ? (
@@ -768,10 +768,7 @@ function NativeChatInterface({
               </span>
               {mounted && (
                 <span className="text-xs text-gray-400">
-                  {formatDistanceToNow(new Date(message.created_at), {
-                    addSuffix: true,
-                    locale: fr
-                  })}
+                  {formatMessageTimestamp(new Date(message.created_at))}
                 </span>
               )}
             </div>
@@ -785,10 +782,7 @@ function NativeChatInterface({
               </span>
               {mounted && (
                 <span className="text-xs text-gray-500">
-                  {formatDistanceToNow(new Date(message.created_at), {
-                    addSuffix: true,
-                    locale: fr
-                  })}
+                  {formatMessageTimestamp(new Date(message.created_at))}
                 </span>
               )}
               {message.edited_at && (
@@ -827,15 +821,21 @@ function NativeChatInterface({
             <div 
               className={cn(
                 "break-words slack-message",
+                // Si le message est supprimé, style italique et grisé
+                message.deleted_at ? "text-sm italic text-gray-500" :
                 // Si le message commence par 📎 ou 🎤, le rendre petit et estompé
                 (message.text && (message.text.startsWith('📎') || message.text.startsWith('🎤'))) ? "text-xs text-gray-500" : "text-sm"
               )}
-              dangerouslySetInnerHTML={{ __html: message.formatted_text || formatSlackMessage(message.text || '') }}
+              dangerouslySetInnerHTML={{ 
+                __html: message.deleted_at 
+                  ? "Message supprimé" 
+                  : message.formatted_text || formatSlackMessage(message.text || '') 
+              }}
             />
           )}
 
-          {/* Fichiers attachés */}
-          {message.files && message.files.length > 0 && (
+          {/* Fichiers attachés (masqués si le message est supprimé) */}
+          {!message.deleted_at && message.files && message.files.length > 0 && (
             <div className="mt-2 space-y-2">
               {message.files.map(file => {
                 // Si c'est un fichier audio, afficher le lecteur audio
@@ -860,8 +860,8 @@ function NativeChatInterface({
             </div>
           )}
 
-          {/* Réactions */}
-          {message.reactions && message.reactions.length > 0 && (
+          {/* Réactions (masquées si le message est supprimé) */}
+          {!message.deleted_at && message.reactions && message.reactions.length > 0 && (
             <div className="flex flex-wrap gap-1 mt-2">
               {message.reactions.map(reaction => {
                 const hasReacted = reaction.users.some(u => u.id === currentUserId)
@@ -1060,16 +1060,6 @@ function NativeChatInterface({
   }, [currentUserId, messages, editingMessageId, editingText, showEmojiReactionPicker, mounted, updateMessage, deleteMessage, addReaction, removeReaction, setReplyingTo, setEditingMessageId, setEditingText, setShowEditingEmojiPicker, getParentMessage])
 
   // Fonction pour vérifier si deux messages doivent être groupés
-  const shouldGroupMessages = (msg1: typeof messages[0], msg2: typeof messages[0]) => {
-    if (!msg1 || !msg2) return false
-    if (msg1.user_id !== msg2.user_id) return false
-    
-    // Grouper si les messages sont envoyés dans les 60 secondes
-    const time1 = new Date(msg1.created_at).getTime()
-    const time2 = new Date(msg2.created_at).getTime()
-    const timeDiff = Math.abs(time1 - time2)
-    return timeDiff < 60 * 1000 // 60 secondes
-  }
 
   // Dédupliquer les messages par ID au cas où
   const uniqueMessages = Array.from(
@@ -1361,8 +1351,8 @@ function NativeChatInterface({
                 handleTyping()
               }}
               onSubmit={handleSendMessage}
-              placeholder="Tapez votre message..."
-              disabled={sendingMessage || isRecording}
+              placeholder={loading ? "Chargement des messages..." : "Tapez votre message..."}
+              disabled={loading || sendingMessage || isRecording}
               showEmojiPicker={showEmojiPicker}
               setShowEmojiPicker={setShowEmojiPicker}
               isRecording={isRecording}
@@ -1374,7 +1364,7 @@ function NativeChatInterface({
 
           <Button
             onClick={handleSendMessage}
-            disabled={sendingMessage || (!messageText.trim() && attachedFiles.length === 0) || isRecording}
+            disabled={loading || sendingMessage || (!messageText.trim() && attachedFiles.length === 0) || isRecording}
             size="default"
             className="h-9"
           >

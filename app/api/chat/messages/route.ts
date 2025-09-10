@@ -660,6 +660,13 @@ async function syncMessageToSlack(message: any, channelId: string, files: any[] 
     } else {
       console.log('DEBUG: Message parent trouvé:', parentMessage)
       parentSlackTs = parentMessage?.slack_ts || undefined
+      
+      // Valider que le thread_ts est au bon format (timestamp Slack: "123456789.123456")
+      if (parentSlackTs && !/^\d+\.\d+$/.test(parentSlackTs)) {
+        console.warn('DEBUG: thread_ts invalide pour Slack:', parentSlackTs, '- Skip thread')
+        parentSlackTs = undefined
+      }
+      
       console.log('DEBUG: parentSlackTs final:', parentSlackTs)
     }
   }
@@ -692,7 +699,7 @@ async function syncMessageToSlack(message: any, channelId: string, files: any[] 
       const uploadResult = await slack.files.uploadV2(uploadParams)
       
       if (uploadResult.ok) {
-        const slackTs = uploadResult.file?.shares?.public?.[channelId]?.[0]?.ts || uploadResult.ts
+        const slackTs = (uploadResult as any).file?.shares?.public?.[channelId]?.[0]?.ts || (uploadResult as any).ts
         console.log('Message long envoyé comme fichier dans Slack:', slackTs)
         
         // Sauvegarder le slack_ts dans la DB et retourner
