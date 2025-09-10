@@ -40,13 +40,11 @@ const EditingWidget = ({ initialText, onSave, onCancel }: {
   onSave: (text: string) => Promise<void>
   onCancel: () => void 
 }) => {
-  console.log('🔧 EditingWidget - initialText:', initialText)
   const [text, setText] = useState(initialText)
   const [saving, setSaving] = useState(false)
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
   const editorRef = useRef<any>(null)
   
-  console.log('🔧 EditingWidget - text state:', text)
   
   // Mettre à jour le state quand initialText change
   useEffect(() => {
@@ -811,7 +809,6 @@ function NativeChatInterface({
           {editingMessageId === message.id ? (
             <EditingWidget 
               initialText={(() => {
-                console.log('🎯 Passing to EditingWidget - message.text:', message.text)
                 return message.text || ''
               })()}
               onSave={async (newText) => {
@@ -831,9 +828,9 @@ function NativeChatInterface({
               className={cn(
                 "break-words slack-message",
                 // Si le message commence par 📎 ou 🎤, le rendre petit et estompé
-                (message.text.startsWith('📎') || message.text.startsWith('🎤')) ? "text-xs text-gray-500" : "text-sm"
+                (message.text && (message.text.startsWith('📎') || message.text.startsWith('🎤'))) ? "text-xs text-gray-500" : "text-sm"
               )}
-              dangerouslySetInnerHTML={{ __html: message.formatted_text || formatSlackMessage(message.text) }}
+              dangerouslySetInnerHTML={{ __html: message.formatted_text || formatSlackMessage(message.text || '') }}
             />
           )}
 
@@ -1079,10 +1076,6 @@ function NativeChatInterface({
     new Map(messages.map(msg => [msg.id, msg])).values()
   )
   
-  // DEBUG: Logs pour le groupement des messages
-  console.log('DEBUG FRONTEND: Nombre de messages uniques:', uniqueMessages.length)
-  const messagesWithThreads = uniqueMessages.filter(m => m.thread_ts)
-  console.log('DEBUG FRONTEND: Messages avec thread_ts:', messagesWithThreads.length, messagesWithThreads.map(m => ({ id: m.id, thread_ts: m.thread_ts, text: m.text?.substring(0, 30) })))
   
   // Grouper les messages par thread et par utilisateur
   // Trier les messages pour traiter les parents avant les réponses
@@ -1116,17 +1109,11 @@ function NativeChatInterface({
       }
     } else {
       // Réponse dans un thread
-      console.log('DEBUG: Traitement réponse', { id: message.id, thread_ts: message.thread_ts, text: message.text?.substring(0, 30) })
       const parentGroup = acc.find(g => 
         g.messages.some(m => m.id === message.thread_ts)
       )
-      console.log('DEBUG: Groupe parent trouvé?', !!parentGroup, 'pour thread_ts:', message.thread_ts)
       if (parentGroup) {
-        console.log('DEBUG: Ajout réponse au groupe parent')
         parentGroup.replies.unshift(message)
-      } else {
-        console.log('DEBUG: PROBLEME - Pas de groupe parent trouvé pour', message.thread_ts)
-        console.log('DEBUG: Groupes existants:', acc.map(g => ({ messageIds: g.messages.map(m => m.id) })))
       }
     }
     return acc

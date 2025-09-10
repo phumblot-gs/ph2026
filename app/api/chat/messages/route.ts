@@ -331,6 +331,7 @@ export async function POST(request: NextRequest) {
     const formattedText = formatSlackMessage(text, false)
 
     // Créer le message dans la base de données
+    console.log('📝 Création d\'un nouveau message:', { group_id, user_id: user.id, text: text.substring(0, 50), thread_ts })
     const { data: message, error: messageError } = await supabase
       .from('chat_messages')
       .insert({
@@ -345,8 +346,11 @@ export async function POST(request: NextRequest) {
       .single()
     
     if (messageError) {
+      console.error('❌ Erreur création message:', messageError)
       return NextResponse.json({ error: 'Erreur lors de la création du message' }, { status: 500 })
     }
+    
+    console.log('✅ Message créé avec succès:', { id: message.id, group_id: message.group_id })
     
     // Récupérer les infos du membre pour enrichir la réponse
     const { data: member } = await supabase
@@ -641,15 +645,6 @@ async function syncMessageToSlack(message: any, channelId: string, files: any[] 
     })
   }
   
-  // Ajouter le message principal
-  blocks.push({
-    type: 'section',
-    text: {
-      type: 'mrkdwn',
-      text: markdownToSlack(message.text)
-    }
-  })
-  
   // Récupérer le slack_ts du message parent si c'est une réponse
   let parentSlackTs: string | undefined = undefined
   if (message.thread_ts) {
@@ -669,9 +664,70 @@ async function syncMessageToSlack(message: any, channelId: string, files: any[] 
     }
   }
   
+  // Ajouter le message principal (avec gestion des messages longs)
+  const slackText = markdownToSlack(message.text)
+  const MAX_SLACK_TEXT_LENGTH = 2900 // Limite Slack pour les blocks de texte
+  let isLongMessageSentAsFile = false // Flag pour empêcher l'envoi normal
+  
+  if (slackText.length > MAX_SLACK_TEXT_LENGTH) {
+    // Message trop long : l'envoyer comme fichier texte
+    const messageBuffer = Buffer.from(message.text, 'utf-8')
+    const messageStream = Readable.from(messageBuffer)
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
+    const filename = `message-${timestamp}.txt`
+    
+    try {
+      const uploadParams: any = {
+        channel_id: channelId,
+        file: messageStream,
+        filename: filename,
+        title: `Message long de ${message.text.length} caractères`,
+        initial_comment: `📄 Message trop long pour Slack (${message.text.length} caractères), envoyé en fichier`
+      }
+      
+      if (parentSlackTs) {
+        uploadParams.thread_ts = parentSlackTs
+      }
+      
+      const uploadResult = await slack.files.uploadV2(uploadParams)
+      
+      if (uploadResult.ok) {
+        const slackTs = uploadResult.file?.shares?.public?.[channelId]?.[0]?.ts || uploadResult.ts
+        console.log('Message long envoyé comme fichier dans Slack:', slackTs)
+        
+        // Sauvegarder le slack_ts dans la DB et retourner
+        await supabase
+          .from('chat_messages')
+          .update({ 
+            slack_ts: slackTs,
+            slack_sync_status: 'synced'
+          })
+          .eq('id', message.id)
+        
+        return // Sortir de la fonction car le message a été envoyé comme fichier
+      } else {
+        console.error('Erreur upload message long:', uploadResult.error)
+        throw new Error('Erreur upload fichier message long')
+      }
+    } catch (err) {
+      console.error('Erreur lors de l\'envoi du message long comme fichier:', err)
+      // Marquer comme envoyé en fichier pour éviter l'envoi normal qui échouerait
+      isLongMessageSentAsFile = true
+    }
+  } else {
+    // Message de taille normale - ajouter aux blocks
+    blocks.push({
+      type: 'section',
+      text: {
+        type: 'mrkdwn',
+        text: slackText
+      }
+    })
+  }
+  
   // Si on a des fichiers, on utilise files.uploadV2 avec initial_comment
   // Cela crée UN SEUL message avec le fichier et le texte
-  let slackTs: string | undefined
+  let slackTs: string | undefined = undefined
   
   if (files && files.length > 0) {
     
@@ -820,8 +876,8 @@ async function syncMessageToSlack(message: any, channelId: string, files: any[] 
     }
   }
   
-  // Envoyer un message texte SEULEMENT si on n'a pas de fichier
-  if (!slackTs && files.length === 0) {
+  // Envoyer un message texte SEULEMENT si on n'a pas de fichier ET que ce n'est pas un message long envoyé en fichier
+  if (!slackTs && files.length === 0 && !isLongMessageSentAsFile) {
     const result = await slack.chat.postMessage({
       channel: channelId,
       blocks: blocks,

@@ -312,9 +312,6 @@ export const LexicalEditor = forwardRef<any, LexicalEditorProps>(({
   className,
   initialValue
 }, ref) => {
-  console.log('📝 LexicalEditor - initialValue:', initialValue)
-  console.log('📝 LexicalEditor - value:', value)
-  
   const editorRef = useRef<HTMLDivElement>(null)
   const [showToolbar, setShowToolbar] = useState(false)
   const [shouldClear, setShouldClear] = useState(false)

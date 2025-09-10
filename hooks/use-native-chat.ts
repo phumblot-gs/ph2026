@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { RealtimeChannel, RealtimePostgresChangesPayload } from '@supabase/supabase-js'
 import { useChatCache } from './use-chat-cache'
@@ -97,7 +97,7 @@ export function useNativeChat(groupId: string | null, shouldIncrementUnread?: ()
   const [hasMore, setHasMore] = useState(true)
   const [sendingMessage, setSendingMessage] = useState(false)
   
-  const supabase = createClient()
+  const supabase = useMemo(() => createClient(), [])
   const channelRef = useRef<RealtimeChannel | null>(null)
   const localMessagesRef = useRef<Map<string, ChatMessage>>(new Map())
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null)
@@ -116,7 +116,8 @@ export function useNativeChat(groupId: string | null, shouldIncrementUnread?: ()
   const lastLoadTimeRef = useRef<number>(0) // Pour tracker le dernier rechargement
   
   // Utiliser le cache
-  const { getFromCache, updateCache, addMessageToCache, updateMessageInCache, removeMessageFromCache, invalidateCache } = useChatCache()
+  const chatCache = useChatCache()
+  const { getFromCache, updateCache, addMessageToCache, updateMessageInCache, removeMessageFromCache, invalidateCache } = chatCache
   
   // Récupérer l'utilisateur actuel
   useEffect(() => {
@@ -168,10 +169,19 @@ export function useNativeChat(groupId: string | null, shouldIncrementUnread?: ()
           // Ajouter les nouveaux messages (écrasera les doublons)
           data.messages.forEach((msg: ChatMessage) => messageMap.set(msg.id, msg))
           
-          // Convertir en array et trier
-          const sorted = Array.from(messageMap.values()).sort((a, b) => 
-            new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-          )
+          // Convertir en array et trier en respectant les threads
+          const allMessages = Array.from(messageMap.values())
+          const sorted = allMessages.sort((a, b) => {
+            // Si c'est une réponse, utiliser la date du message parent pour le tri
+            const aDate = a.thread_ts ? 
+              (allMessages.find(m => m.id === a.thread_ts)?.created_at || a.created_at) : 
+              a.created_at
+            const bDate = b.thread_ts ? 
+              (allMessages.find(m => m.id === b.thread_ts)?.created_at || b.created_at) : 
+              b.created_at
+            
+            return new Date(bDate).getTime() - new Date(aDate).getTime()
+          })
           
           // Mettre à jour le cache avec les messages combinés
           updateCache(groupId, sorted, data.has_more || false)
@@ -219,11 +229,12 @@ export function useNativeChat(groupId: string | null, shouldIncrementUnread?: ()
         setLoading(false)
       }
     }
-  }, [updateCache])
+  }, []) // Remove updateCache dependency to avoid re-renders
   
   // Charger les messages
   const loadMessages = useCallback(async (before?: string, forceRefresh = false) => {
     if (!groupId) return
+    
     
     
     // Si pas de before et pas de forceRefresh, essayer d'utiliser le cache
@@ -251,7 +262,7 @@ export function useNativeChat(groupId: string | null, shouldIncrementUnread?: ()
     }
     
     await loadMessagesFromAPI(groupId, before, false)
-  }, [groupId, getFromCache, loadMessagesFromAPI])
+  }, [groupId]) // Remove unstable dependencies to avoid re-renders
   
   // Stocker la référence à loadMessages
   useEffect(() => {
@@ -408,16 +419,8 @@ export function useNativeChat(groupId: string | null, shouldIncrementUnread?: ()
         return updated
       })
       
-      // Si c'est une réponse à un thread, forcer un rechargement pour avoir la structure complète
-      // Ceci est nécessaire car l'API retourne maintenant les messages principaux ET leurs réponses
-      if (threadTs) {
-        // Invalider le cache pour forcer un rechargement avec les réponses
-        invalidateCache(groupId)
-        // Recharger les messages après un délai plus long pour laisser le temps à la DB
-        setTimeout(() => {
-          loadMessagesRef.current(groupId)
-        }, 500)
-      }
+      // Les réponses aux threads sont maintenant gérées par le real-time, 
+      // pas besoin de forcer un rechargement qui cause un scroll indésirable
       
       return true
       
@@ -431,7 +434,7 @@ export function useNativeChat(groupId: string | null, shouldIncrementUnread?: ()
     } finally {
       setSendingMessage(false)
     }
-  }, [groupId, addMessageToCache, invalidateCache])
+  }, [groupId]) // Remove unstable dependencies
   
   // Modifier un message
   const updateMessage = useCallback(async (
@@ -481,7 +484,7 @@ export function useNativeChat(groupId: string | null, shouldIncrementUnread?: ()
       setError(err instanceof Error ? err.message : 'Erreur inconnue')
       return false
     }
-  }, [groupId, updateMessageInCache])
+  }, [groupId]) // Remove unstable dependencies
   
   // Supprimer un message
   const deleteMessage = useCallback(async (messageId: string): Promise<boolean> => {
@@ -541,7 +544,7 @@ export function useNativeChat(groupId: string | null, shouldIncrementUnread?: ()
       setError(err instanceof Error ? err.message : 'Erreur inconnue')
       return false
     }
-  }, [groupId, updateMessageInCache, messages])
+  }, [groupId]) // Remove unstable dependencies
   
   // Retirer une réaction (défini avant addReaction car utilisé dans ses dépendances)
   const removeReaction = useCallback(async (
@@ -639,7 +642,7 @@ export function useNativeChat(groupId: string | null, shouldIncrementUnread?: ()
       setError(err instanceof Error ? err.message : 'Erreur inconnue')
       return false
     }
-  }, [groupId, updateMessageInCache])
+  }, [groupId]) // Remove unstable dependencies
 
   // Ajouter une réaction
   const addReaction = useCallback(async (
@@ -788,7 +791,7 @@ export function useNativeChat(groupId: string | null, shouldIncrementUnread?: ()
       setError(err instanceof Error ? err.message : 'Erreur inconnue')
       return false
     }
-  }, [groupId, removeReaction, updateMessageInCache])
+  }, [groupId]) // Remove unstable dependencies to avoid re-renders
   
   // Signaler qu'on est en train de taper
   const setTyping = useCallback(async (isTyping: boolean) => {
@@ -890,7 +893,7 @@ export function useNativeChat(groupId: string | null, shouldIncrementUnread?: ()
         // Si des messages ont été synchronisés, forcer un rechargement après un délai
         if (data.synced > 0 && loadMessagesRef.current) {
           setTimeout(() => {
-            loadMessagesRef.current?.(groupId)
+            loadMessagesRef.current?.()
           }, 1000)
         }
       } else {
@@ -902,7 +905,9 @@ export function useNativeChat(groupId: string | null, shouldIncrementUnread?: ()
   
   // Configuration Realtime
   useEffect(() => {
-    if (!groupId) return
+    if (!groupId) {
+      return
+    }
     
     // Nettoyer l'ancienne connexion
     if (channelRef.current) {
@@ -911,6 +916,11 @@ export function useNativeChat(groupId: string | null, shouldIncrementUnread?: ()
     
     // Réinitialiser le Set des messages traités quand on change de groupe
     processedMessagesRef.current.clear()
+    
+    // Réinitialiser l'état des messages pour éviter d'afficher les anciens messages
+    setMessages([])
+    setLoading(true)
+    setError(null)
     
     // Créer le canal Realtime
     const channel = supabase
@@ -1098,10 +1108,18 @@ export function useNativeChat(groupId: string | null, shouldIncrementUnread?: ()
               } else {
               }
               
-              // Ajouter et retrier par date décroissante
-              const updated = [fullMessage, ...prev].sort((a, b) => 
-                new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-              )
+              // Ajouter et retrier en respectant les threads
+              const updated = [fullMessage, ...prev].sort((a, b) => {
+                // Si c'est une réponse, utiliser la date du message parent pour le tri
+                const aDate = a.thread_ts ? 
+                  (prev.find(m => m.id === a.thread_ts)?.created_at || a.created_at) : 
+                  a.created_at
+                const bDate = b.thread_ts ? 
+                  (prev.find(m => m.id === b.thread_ts)?.created_at || b.created_at) : 
+                  b.created_at
+                
+                return new Date(bDate).getTime() - new Date(aDate).getTime()
+              })
               
               // Incrémenter le compteur si l'utilisateur a scrollé vers le haut
               // Le hook useUnreadCounts ne gère PAS le groupe actif pour éviter les conflits
@@ -1125,6 +1143,8 @@ export function useNativeChat(groupId: string | null, shouldIncrementUnread?: ()
               if (groupId) {
                 addMessageToCache(groupId, fullMessage)
               }
+              
+              
               return updated
             })
           }
@@ -1304,15 +1324,14 @@ export function useNativeChat(groupId: string | null, shouldIncrementUnread?: ()
           }
         }
       )
-      .subscribe((status) => {
-      })
+      .subscribe()
     
     channelRef.current = channel
     
     // Charger les messages initiaux avec un petit délai pour s'assurer que loadMessagesRef est défini
     setTimeout(() => {
       if (loadMessagesRef.current) {
-        loadMessagesRef.current(groupId)
+        loadMessagesRef.current() // loadMessages utilise déjà groupId via la closure
       }
     }, 0)
     
@@ -1342,7 +1361,7 @@ export function useNativeChat(groupId: string | null, shouldIncrementUnread?: ()
         clearInterval(syncIntervalRef.current)
       }
     }
-  }, [groupId, shouldIncrementUnread, incrementUnreadCount]) // Ajouter les dépendances manquantes
+  }, [groupId]) // Simplified dependencies to avoid infinite re-renders
   
   return {
     // État
