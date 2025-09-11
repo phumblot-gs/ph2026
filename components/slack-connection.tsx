@@ -93,7 +93,7 @@ export function SlackConnection({ userId }: SlackConnectionProps) {
         }
       }
     } catch (error) {
-      console.error('Error checking invitation status:', error);
+      // Erreur silencieuse pour éviter le spam
     }
   }
 
@@ -108,11 +108,10 @@ export function SlackConnection({ userId }: SlackConnectionProps) {
       if (response.ok) {
         await checkInvitationStatus();
       } else {
-        const data = await response.json();
-        console.error('Error requesting invitation:', data.error);
+        // Erreur silencieuse
       }
     } catch (error) {
-      console.error('Error requesting invitation:', error);
+      // Erreur silencieuse
     }
     
     setRequestingInvite(false);
@@ -140,7 +139,6 @@ export function SlackConnection({ userId }: SlackConnectionProps) {
         alert('Erreur lors de la déconnexion');
       }
     } catch (error) {
-      console.error('Error disconnecting from Slack:', error);
       alert('Erreur lors de la déconnexion');
     } finally {
       setDisconnecting(false);

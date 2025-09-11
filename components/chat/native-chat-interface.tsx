@@ -2,8 +2,8 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { useNativeChat } from '@/hooks/use-native-chat'
-import { formatDistanceToNow } from 'date-fns'
-import { fr } from 'date-fns/locale'
+import { shouldGroupMessages } from '@/lib/date-utils'
+import { sortMessagesWithThreads } from '@/lib/message-sorting'
 import EmojiPicker, { EmojiClickData } from 'emoji-picker-react'
 import { formatSlackMessage } from '@/lib/slack-formatter'
 import { Send, Paperclip, Edit2, Trash2, Reply, X, ChevronDown, ArrowDown, StopCircle } from 'lucide-react'
@@ -16,6 +16,7 @@ import { Input } from '@/components/ui/input'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { Spinner } from '@/components/ui/spinner'
+import { formatMessageTimestamp } from '@/lib/date-utils'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 
@@ -26,6 +27,7 @@ interface NativeChatInterfaceProps {
   className?: string
   markChannelAsRead?: (groupId: string) => void
   incrementUnreadCount?: (groupId: string) => void
+  unreadCount?: number
 }
 
 // Emojis courants pour les réactions rapides
@@ -40,13 +42,15 @@ const EditingWidget = ({ initialText, onSave, onCancel }: {
   onSave: (text: string) => Promise<void>
   onCancel: () => void 
 }) => {
-  console.log('🔧 EditingWidget - initialText:', initialText)
   const [text, setText] = useState(initialText)
   const [saving, setSaving] = useState(false)
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
   const editorRef = useRef<any>(null)
   
-  console.log('🔧 EditingWidget - text state:', text)
+  // Mettre à jour le state quand initialText change
+  useEffect(() => {
+    setText(initialText)
+  }, [initialText])
 
   const handleSave = async () => {
     if (!text.trim()) return
@@ -55,12 +59,25 @@ const EditingWidget = ({ initialText, onSave, onCancel }: {
     setSaving(false)
   }
 
-  // Focus l'éditeur au montage
+  // Focus l'éditeur au montage et gérer Escape
   useEffect(() => {
     setTimeout(() => {
       editorRef.current?.focus()
     }, 200)
-  }, [])
+    
+    // Ajouter un event listener pour Escape
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        onCancel()
+      }
+    }
+    
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [onCancel])
 
   return (
     <div className="space-y-2">
@@ -108,7 +125,7 @@ const EditingWidget = ({ initialText, onSave, onCancel }: {
         
         <div className="flex justify-between items-center mt-3">
           <div className="text-xs text-gray-500">
-            Ctrl+Enter pour enregistrer • Escape pour annuler
+            Enter pour enregistrer • Escape pour annuler
           </div>
           <div className="flex gap-2">
             <Button
@@ -132,52 +149,13 @@ function NativeChatInterface({
   currentUserId,
   className,
   markChannelAsRead,
-  incrementUnreadCount
+  incrementUnreadCount,
+  unreadCount = 0
 }: NativeChatInterfaceProps) {
   const [mounted, setMounted] = useState(false)
   
   useEffect(() => {
     setMounted(true)
-  }, [])
-
-  // Auto-focus sur le champ de texte quand on tape
-  useEffect(() => {
-    const handleGlobalKeyPress = (e: KeyboardEvent) => {
-      // Ignorer si on est déjà dans un champ de saisie
-      const target = e.target as HTMLElement
-      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.contentEditable === 'true') {
-        return
-      }
-      
-      // Ignorer les touches de contrôle et les raccourcis
-      if (e.ctrlKey || e.metaKey || e.altKey) {
-        return
-      }
-      
-      // Ignorer certaines touches spéciales
-      const ignoredKeys = ['Tab', 'Escape', 'Enter', 'Shift', 'Control', 'Alt', 'Meta', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'PageUp', 'PageDown', 'Home', 'End', 'F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8', 'F9', 'F10', 'F11', 'F12']
-      if (ignoredKeys.includes(e.key)) {
-        return
-      }
-      
-      // Donner le focus à l'éditeur et insérer le caractère tapé
-      if (editorRef.current?.focus) {
-        editorRef.current.focus()
-        
-        // Si c'est une lettre, un chiffre ou un caractère imprimable, l'ajouter au texte
-        if (e.key.length === 1) {
-          // Ajouter le caractère tapé au texte existant
-          setMessageText(prev => prev + e.key)
-          // Empêcher le comportement par défaut
-          e.preventDefault()
-        }
-      }
-    }
-
-    window.addEventListener('keydown', handleGlobalKeyPress)
-    return () => {
-      window.removeEventListener('keydown', handleGlobalKeyPress)
-    }
   }, [])
 
   // Refs pour le scroll - définis avant car utilisés dans les callbacks
@@ -216,6 +194,7 @@ function NativeChatInterface({
     loadMoreMessages
   } = useNativeChat(groupId, shouldIncrementUnread, incrementUnreadCount)
   
+  
 
   const [messageText, setMessageText] = useState('')
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null)
@@ -250,6 +229,51 @@ function NativeChatInterface({
   const [isDragging, setIsDragging] = useState(false)
   const dragCounterRef = useRef(0) // Pour gérer les entrées/sorties multiples du drag
   const messagesRef = useRef(messages) // Référence aux messages pour éviter les closures
+
+  // Auto-focus sur le champ de texte quand on tape
+  useEffect(() => {
+    const handleGlobalKeyPress = (e: KeyboardEvent) => {
+      // Ignorer si un message est en cours d'édition
+      if (editingMessageId) {
+        return
+      }
+      
+      // Ignorer si on est déjà dans un champ de saisie
+      const target = e.target as HTMLElement
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.contentEditable === 'true') {
+        return
+      }
+      
+      // Ignorer les touches de contrôle et les raccourcis
+      if (e.ctrlKey || e.metaKey || e.altKey) {
+        return
+      }
+      
+      // Ignorer certaines touches spéciales
+      const ignoredKeys = ['Tab', 'Escape', 'Enter', 'Shift', 'Control', 'Alt', 'Meta', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'PageUp', 'PageDown', 'Home', 'End', 'F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8', 'F9', 'F10', 'F11', 'F12']
+      if (ignoredKeys.includes(e.key)) {
+        return
+      }
+      
+      // Donner le focus à l'éditeur et insérer le caractère tapé
+      if (editorRef.current?.focus) {
+        editorRef.current.focus()
+        
+        // Si c'est une lettre, un chiffre ou un caractère imprimable, l'ajouter au texte
+        if (e.key.length === 1) {
+          // Ajouter le caractère tapé au texte existant
+          setMessageText(prev => prev + e.key)
+          // Empêcher le comportement par défaut
+          e.preventDefault()
+        }
+      }
+    }
+
+    window.addEventListener('keydown', handleGlobalKeyPress)
+    return () => {
+      window.removeEventListener('keydown', handleGlobalKeyPress)
+    }
+  }, [editingMessageId])
   
   // Mettre à jour la référence quand les messages changent
   useEffect(() => {
@@ -698,7 +722,7 @@ function NativeChatInterface({
   }
 
   // Rendu d'un message - mémorisé pour éviter les re-rendus
-  const renderMessage = useCallback((message: typeof messages[0], isReply = false, showHeader = true) => {
+  const renderMessage = (message: typeof messages[0], isReply = false, showHeader = true) => {
     const isCurrentUser = message.user_id === currentUserId
     const parentMessage = message.thread_ts ? getParentMessage(message.thread_ts) : null
     
@@ -719,11 +743,11 @@ function NativeChatInterface({
     return (
       <div
         className={cn(
-          'group flex gap-3 hover:bg-[#f0f1f2] relative',
+          'group flex gap-3 relative',
           showHeader ? 'pt-3' : 'pt-1',
           'px-3 pb-1',
           isReply && 'ml-12 border-l-2 border-gray-200',
-          message.deleted_at && 'opacity-50'
+          message.deleted_at ? 'opacity-60' : 'hover:bg-[#f0f1f2]'
         )}
       >
         {!isReply && showHeader ? (
@@ -746,10 +770,7 @@ function NativeChatInterface({
               </span>
               {mounted && (
                 <span className="text-xs text-gray-400">
-                  {formatDistanceToNow(new Date(message.created_at), {
-                    addSuffix: true,
-                    locale: fr
-                  })}
+                  {formatMessageTimestamp(new Date(message.created_at))}
                 </span>
               )}
             </div>
@@ -763,10 +784,7 @@ function NativeChatInterface({
               </span>
               {mounted && (
                 <span className="text-xs text-gray-500">
-                  {formatDistanceToNow(new Date(message.created_at), {
-                    addSuffix: true,
-                    locale: fr
-                  })}
+                  {formatMessageTimestamp(new Date(message.created_at))}
                 </span>
               )}
               {message.edited_at && (
@@ -787,7 +805,6 @@ function NativeChatInterface({
           {editingMessageId === message.id ? (
             <EditingWidget 
               initialText={(() => {
-                console.log('🎯 Passing to EditingWidget - message.text:', message.text)
                 return message.text || ''
               })()}
               onSave={async (newText) => {
@@ -806,15 +823,21 @@ function NativeChatInterface({
             <div 
               className={cn(
                 "break-words slack-message",
+                // Si le message est supprimé, style italique et grisé
+                message.deleted_at ? "text-sm italic text-gray-500" :
                 // Si le message commence par 📎 ou 🎤, le rendre petit et estompé
-                (message.text.startsWith('📎') || message.text.startsWith('🎤')) ? "text-xs text-gray-500" : "text-sm"
+                (message.text && (message.text.startsWith('📎') || message.text.startsWith('🎤'))) ? "text-xs text-gray-500" : "text-sm"
               )}
-              dangerouslySetInnerHTML={{ __html: formatSlackMessage(message.formatted_text || message.text) }}
+              dangerouslySetInnerHTML={{ 
+                __html: message.deleted_at 
+                  ? "Message supprimé" 
+                  : message.formatted_text || formatSlackMessage(message.text || '') 
+              }}
             />
           )}
 
-          {/* Fichiers attachés */}
-          {message.files && message.files.length > 0 && (
+          {/* Fichiers attachés (masqués si le message est supprimé) */}
+          {!message.deleted_at && message.files && message.files.length > 0 && (
             <div className="mt-2 space-y-2">
               {message.files.map(file => {
                 // Si c'est un fichier audio, afficher le lecteur audio
@@ -839,13 +862,14 @@ function NativeChatInterface({
             </div>
           )}
 
-          {/* Réactions */}
-          {message.reactions && message.reactions.length > 0 && (
+          {/* Réactions (masquées si le message est supprimé) */}
+          {!message.deleted_at && message.reactions && message.reactions.length > 0 && (
             <div className="flex flex-wrap gap-1 mt-2">
               {message.reactions.map(reaction => {
                 const hasReacted = reaction.users.some(u => u.id === currentUserId)
                 const popoverId = `${message.id}-${reaction.emoji}`
                 const shouldForceClose = forceClosePopover === popoverId
+                
                 
                 return (
                   <Popover 
@@ -1036,27 +1060,21 @@ function NativeChatInterface({
         )}
       </div>
     )
-  }, [currentUserId, messages, editingMessageId, editingText, showEmojiReactionPicker, mounted, updateMessage, deleteMessage, addReaction, removeReaction, setReplyingTo, setEditingMessageId, setEditingText, setShowEditingEmojiPicker, getParentMessage])
-
-  // Fonction pour vérifier si deux messages doivent être groupés
-  const shouldGroupMessages = (msg1: typeof messages[0], msg2: typeof messages[0]) => {
-    if (!msg1 || !msg2) return false
-    if (msg1.user_id !== msg2.user_id) return false
-    
-    // Grouper si les messages sont envoyés dans les 60 secondes
-    const time1 = new Date(msg1.created_at).getTime()
-    const time2 = new Date(msg2.created_at).getTime()
-    const timeDiff = Math.abs(time1 - time2)
-    return timeDiff < 60 * 1000 // 60 secondes
   }
 
-  // Dédupliquer les messages par ID au cas où
+  // Fonction pour vérifier si deux messages doivent être groupés
+
+  // Dédupliquer les messages par ID en gardant la dernière version
+  // IMPORTANT: On inverse puis re-inverse pour que la Map garde la DERNIÈRE occurrence de chaque ID
   const uniqueMessages = Array.from(
-    new Map(messages.map(msg => [msg.id, msg])).values()
-  )
+    new Map(messages.slice().reverse().map(msg => [msg.id, msg])).values()
+  ).reverse()
   
-  // Grouper les messages par thread et par utilisateur
-  const messageGroups = uniqueMessages.reduce((acc, message, index) => {
+  
+  // Trier les messages avec support des threads
+  const sortedMessages = sortMessagesWithThreads(uniqueMessages)
+
+  const messageGroups = sortedMessages.reduce((acc, message, index) => {
     if (!message.thread_ts) {
       // Message principal
       // Vérifier si on peut grouper avec le dernier groupe existant
@@ -1136,9 +1154,9 @@ function NativeChatInterface({
           variant="secondary"
         >
           <ArrowDown className="h-4 w-4" />
-          {newMessagesWhileScrolled > 0 && (
+          {unreadCount > 0 && (
             <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full min-w-[20px] h-5 flex items-center justify-center px-1">
-              {newMessagesWhileScrolled}
+              {unreadCount}
             </span>
           )}
         </Button>
@@ -1330,8 +1348,8 @@ function NativeChatInterface({
                 handleTyping()
               }}
               onSubmit={handleSendMessage}
-              placeholder="Tapez votre message..."
-              disabled={sendingMessage || isRecording}
+              placeholder={loading ? "Chargement des messages..." : "Tapez votre message..."}
+              disabled={loading || sendingMessage || isRecording}
               showEmojiPicker={showEmojiPicker}
               setShowEmojiPicker={setShowEmojiPicker}
               isRecording={isRecording}
@@ -1343,7 +1361,7 @@ function NativeChatInterface({
 
           <Button
             onClick={handleSendMessage}
-            disabled={sendingMessage || (!messageText.trim() && attachedFiles.length === 0) || isRecording}
+            disabled={loading || sendingMessage || (!messageText.trim() && attachedFiles.length === 0) || isRecording}
             size="default"
             className="h-9"
           >

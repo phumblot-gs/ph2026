@@ -50,7 +50,6 @@ export default function LoginPage() {
       })
 
       if (error) {
-        console.error('Login error:', error)
         throw error
       }
 
@@ -70,7 +69,6 @@ export default function LoginPage() {
         router.refresh()
       }
     } catch (error: any) {
-      console.error('Auth error:', error)
       if (error.message === 'Invalid login credentials') {
         setError('Email ou mot de passe incorrect')
       } else if (error.message.includes('Email not confirmed')) {

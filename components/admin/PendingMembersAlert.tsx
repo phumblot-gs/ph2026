@@ -41,7 +41,7 @@ export default function PendingMembersAlert() {
         setPendingCount(count || 0)
       }
     } catch (error) {
-      console.error('Error checking pending members:', error)
+      // Erreur silencieuse
     }
   }
 
