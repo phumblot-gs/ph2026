@@ -61,6 +61,7 @@ import {
 } from 'lucide-react';
 import { AdminNav } from '@/components/admin-nav';
 import { Footer } from '@/components/footer';
+import GroupModulesPermissions from '@/components/admin/group-modules-permissions';
 import ExcelJS from 'exceljs';
 
 interface GroupEditPageProps {
@@ -793,6 +794,12 @@ export default function GroupEditPage({
             )}
           </CardContent>
         </Card>
+        
+        {/* Module Permissions */}
+        <GroupModulesPermissions 
+          groupId={groupId}
+          onMessage={setMessage}
+        />
         
         {/* Members */}
         <Card>

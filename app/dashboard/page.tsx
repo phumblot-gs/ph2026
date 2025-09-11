@@ -20,7 +20,27 @@ export default async function DashboardPage() {
     .eq('user_id', user.id)
     .single()
   
-  // Récupérer les groupes du membre avec leurs canaux Slack
+  // Récupérer d'abord l'ID du module discussions
+  const { data: discussionsModule } = await supabase
+    .from('modules')
+    .select('id')
+    .eq('name', 'discussions')
+    .single()
+
+  if (!discussionsModule) {
+    return <div>Module discussions non trouvé</div>
+  }
+
+  // Récupérer les groupes qui ont accès au module discussions
+  const { data: groupsWithAccess } = await supabase
+    .from('group_modules')
+    .select('group_id')
+    .eq('module_id', discussionsModule.id)
+    .eq('can_read', true)
+
+  const accessibleGroupIds = groupsWithAccess?.map(g => g.group_id) || []
+
+  // Récupérer les groupes de l'utilisateur parmi ceux qui ont accès au module
   const { data: userGroups } = await supabase
     .from('user_groups')
     .select(`
@@ -33,6 +53,7 @@ export default async function DashboardPage() {
       )
     `)
     .eq('user_id', user.id)
+    .in('group_id', accessibleGroupIds)
   
   // Get website URL, highlight URL and donations setting for navigation
   const { data: navigationSettings } = await supabase
@@ -44,7 +65,7 @@ export default async function DashboardPage() {
   const highlightUrl = navigationSettings?.find(s => s.setting_key === 'highlight_url')?.setting_value || null
   const donationsEnabled = navigationSettings?.find(s => s.setting_key === 'donations_enabled')?.setting_value === 'true'
   
-  // Transform groups data
+  // Transform groups data and sort alphabetically
   const groups = userGroups?.map(ug => {
     const group = ug.groups as unknown as { id: string; name: string; slack_channel_id: string | null } | null
     return {
@@ -52,7 +73,8 @@ export default async function DashboardPage() {
       name: group?.name || '',
       slack_channel_id: group?.slack_channel_id || null
     }
-  }).filter(g => g.id) || []
+  }).filter(g => g.id)
+    .sort((a, b) => a.name.localeCompare(b.name)) || []
   
   // Get initial Slack messages from cache first
   let initialMessagesByGroup: Record<string, any> = {}

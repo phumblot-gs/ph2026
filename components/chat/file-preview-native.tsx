@@ -105,6 +105,7 @@ export function FilePreviewNative({ file, className }: FilePreviewNativeProps) {
   const getFileTypeLabel = () => {
     const type = file.mimetype || ''
     const name = fileName || ''
+    const extension = name.toLowerCase().split('.').pop() || ''
     
     if (type.startsWith('image/')) return 'Image'
     if (type.startsWith('video/')) return 'Vidéo'
@@ -116,7 +117,8 @@ export function FilePreviewNative({ file, className }: FilePreviewNativeProps) {
     if (type.includes('zip') || name.match(/\.(zip|rar|tar|gz)$/i)) return 'Archive'
     if (name.match(/\.(js|jsx|ts|tsx|py|java|c|cpp|cs|php|rb|go|rs|swift|kt)$/i)) return 'Code'
     
-    return 'Fichier'
+    // Pour les fichiers non reconnus, afficher l'extension en majuscules
+    return extension ? extension.toUpperCase() : 'Fichier'
   }
   
   // Détection améliorée des types de fichiers

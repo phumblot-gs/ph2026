@@ -6,6 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import DonationsTab from './donations-tab';
 import MembersTab from './members-tab';
 import GroupsTab from './groups-tab';
+import ModulesTab from './modules-tab';
 import SettingsTab from './settings-tab';
 import { SlackInvitationsTab } from './slack-invitations-tab';
 
@@ -17,7 +18,7 @@ function AdminTabsContent() {
   
   // Récupérer l'onglet depuis l'URL, le sessionStorage ou utiliser la valeur par défaut
   // État initial basé uniquement sur l'URL pour éviter les problèmes d'hydratation
-  const validTabs = ['donations', 'members', 'groups', 'slack', 'settings'];
+  const validTabs = ['donations', 'members', 'groups', 'modules', 'slack', 'settings'];
   const initialTab = tabFromUrl && validTabs.includes(tabFromUrl)
     ? tabFromUrl
     : 'donations';
@@ -54,10 +55,11 @@ function AdminTabsContent() {
   
   return (
     <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
-      <TabsList className="grid w-full grid-cols-5 lg:w-auto">
+      <TabsList className="grid w-full grid-cols-6 lg:w-auto">
         <TabsTrigger value="donations">Dons</TabsTrigger>
         <TabsTrigger value="members">Membres</TabsTrigger>
         <TabsTrigger value="groups">Groupes</TabsTrigger>
+        <TabsTrigger value="modules">Modules</TabsTrigger>
         <TabsTrigger value="slack">Slack</TabsTrigger>
         <TabsTrigger value="settings">Paramètres</TabsTrigger>
       </TabsList>
@@ -72,6 +74,10 @@ function AdminTabsContent() {
       
       <TabsContent value="groups" className="space-y-6">
         <GroupsTab />
+      </TabsContent>
+      
+      <TabsContent value="modules" className="space-y-6">
+        <ModulesTab />
       </TabsContent>
       
       <TabsContent value="slack" className="space-y-6">
@@ -89,10 +95,12 @@ export default function AdminTabs() {
   return (
     <Suspense fallback={
       <Tabs defaultValue="donations" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-5 lg:w-auto">
+        <TabsList className="grid w-full grid-cols-6 lg:w-auto">
           <TabsTrigger value="donations">Dons</TabsTrigger>
           <TabsTrigger value="members">Membres</TabsTrigger>
           <TabsTrigger value="groups">Groupes</TabsTrigger>
+          <TabsTrigger value="modules">Modules</TabsTrigger>
+          <TabsTrigger value="slack">Slack</TabsTrigger>
           <TabsTrigger value="settings">Paramètres</TabsTrigger>
         </TabsList>
       </Tabs>

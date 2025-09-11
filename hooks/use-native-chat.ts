@@ -6,6 +6,7 @@ import { RealtimeChannel, RealtimePostgresChangesPayload } from '@supabase/supab
 import { useChatCache } from './use-chat-cache'
 import { formatSlackMessage } from '@/lib/slack-formatter'
 import { sortMessagesWithThreads } from '@/lib/message-sorting'
+import { toast } from 'sonner'
 
 // Types
 export interface ChatMessage {
@@ -318,6 +319,7 @@ export function useNativeChat(groupId: string | null, shouldIncrementUnread?: ()
     try {
       // Upload des fichiers si présents
       let uploadedFiles: ChatFile[] = []
+      
       if (files && files.length > 0) {
         for (const file of files) {
           const formData = new FormData()
@@ -335,6 +337,7 @@ export function useNativeChat(groupId: string | null, shouldIncrementUnread?: ()
             uploadedFiles.push(uploadedFile)
           } else {
             const errorData = await uploadResponse.json().catch(() => ({ error: 'Upload failed' }))
+            toast.error(errorData.error || `Erreur lors de l'upload de "${file.name}"`)
             throw new Error(errorData.error || `Erreur lors de l'upload du fichier (${uploadResponse.status})`)
           }
         }

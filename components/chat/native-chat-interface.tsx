@@ -513,10 +513,80 @@ function NativeChatInterface({
     setShowEmojiReactionPicker(null)
   }
 
+  // Liste des types MIME autorisés par Supabase Storage
+  const ALLOWED_MIME_TYPES = [
+    // Images
+    'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml',
+    // Documents
+    'application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'application/vnd.ms-powerpoint', 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    'text/plain', 'text/csv',
+    // Audio
+    'audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/ogg', 'audio/webm', 'audio/mp4', 'audio/m4a',
+    // Vidéo
+    'video/mp4', 'video/webm', 'video/ogg', 'video/quicktime',
+    // Archives
+    'application/zip', 'application/x-zip-compressed', 'application/x-rar-compressed', 'application/x-7z-compressed'
+  ]
+
+  const validateFileType = (file: File) => {
+    // Vérifier le type MIME
+    if (file.type && ALLOWED_MIME_TYPES.includes(file.type)) {
+      return true
+    }
+    
+    // Vérification par extension pour certains cas où le MIME type n'est pas reconnu
+    const extension = file.name.toLowerCase().split('.').pop()
+    const allowedExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt', 'csv', 'mp3', 'wav', 'ogg', 'm4a', 'mp4', 'webm', 'mov', 'zip', 'rar', '7z']
+    
+    return extension ? allowedExtensions.includes(extension) : false
+  }
+
+  const showUnsupportedFileError = (fileName: string) => {
+    const extension = fileName.split('.').pop()?.toUpperCase() || 'ce type'
+    toast.error(
+      `Format ${extension} non supporté`,
+      {
+        description: "Formats autorisés : Images (JPG, PNG, GIF, WebP, SVG), Documents (PDF, Word, Excel, PowerPoint), Texte (TXT, CSV), Audio (MP3, WAV, OGG, M4A), Vidéo (MP4, WebM, MOV), Archives (ZIP, RAR, 7Z)",
+        duration: 8000
+      }
+    )
+  }
+
   // Gérer la sélection de fichiers
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || [])
-    setAttachedFiles(prev => [...prev, ...files])
+    const MAX_FILE_SIZE = 50 * 1024 * 1024 // 50MB
+    
+    // Vérifier la taille et le type des fichiers
+    const validFiles = []
+    const rejectedFiles = []
+    
+    for (const file of files) {
+      if (file.size > MAX_FILE_SIZE) {
+        const sizeMB = (file.size / (1024 * 1024)).toFixed(1)
+        toast.error(`Le fichier "${file.name}" (${sizeMB} MB) dépasse la limite de 50 MB`)
+        rejectedFiles.push(file)
+      } else if (!validateFileType(file)) {
+        showUnsupportedFileError(file.name)
+        rejectedFiles.push(file)
+      } else {
+        validFiles.push(file)
+      }
+    }
+    
+    // Ajouter seulement les fichiers valides
+    if (validFiles.length > 0) {
+      setAttachedFiles(prev => [...prev, ...validFiles])
+      
+      if (rejectedFiles.length > 0) {
+        toast.success(`${validFiles.length} fichier(s) ajouté(s), ${rejectedFiles.length} rejeté(s)`)
+      }
+    }
+    
+    // Reset l'input pour permettre de sélectionner le même fichier à nouveau
+    e.target.value = ''
   }
 
   // Gestionnaires pour le drag & drop
@@ -551,10 +621,37 @@ function NativeChatInterface({
 
     const files = Array.from(e.dataTransfer.files)
     if (files.length > 0) {
-      setAttachedFiles(prev => [...prev, ...files])
-      toast.success(`${files.length} fichier${files.length > 1 ? 's' : ''} ajouté${files.length > 1 ? 's' : ''}`)
+      const MAX_FILE_SIZE = 50 * 1024 * 1024 // 50MB
+      
+      // Vérifier la taille et le type des fichiers
+      const validFiles = []
+      const rejectedFiles = []
+      
+      for (const file of files) {
+        if (file.size > MAX_FILE_SIZE) {
+          const sizeMB = (file.size / (1024 * 1024)).toFixed(1)
+          toast.error(`Le fichier "${file.name}" (${sizeMB} MB) dépasse la limite de 50 MB`)
+          rejectedFiles.push(file)
+        } else if (!validateFileType(file)) {
+          showUnsupportedFileError(file.name)
+          rejectedFiles.push(file)
+        } else {
+          validFiles.push(file)
+        }
+      }
+      
+      // Ajouter seulement les fichiers valides
+      if (validFiles.length > 0) {
+        setAttachedFiles(prev => [...prev, ...validFiles])
+        
+        if (rejectedFiles.length > 0) {
+          toast.success(`${validFiles.length} fichier(s) ajouté(s), ${rejectedFiles.length} rejeté(s)`)
+        } else {
+          toast.success(`${validFiles.length} fichier${validFiles.length > 1 ? 's' : ''} ajouté${validFiles.length > 1 ? 's' : ''}`)
+        }
+      }
     }
-  }, [])
+  }, [validateFileType, showUnsupportedFileError])
 
   // Fonctions pour l'enregistrement vocal
   const startRecording = async () => {
