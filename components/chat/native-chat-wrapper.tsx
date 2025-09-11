@@ -23,6 +23,7 @@ interface NativeChatWrapperProps {
   className?: string
   markChannelAsRead?: (groupId: string) => void
   incrementUnreadCount?: (groupId: string) => void
+  unreadCount?: number
 }
 
 export function NativeChatWrapper(props: NativeChatWrapperProps) {

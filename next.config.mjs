@@ -8,6 +8,8 @@ const nextConfig = {
       },
     ],
   },
+  // Désactiver React StrictMode en développement pour éviter les double-renders
+  reactStrictMode: false,
 }
 
 export default nextConfig
