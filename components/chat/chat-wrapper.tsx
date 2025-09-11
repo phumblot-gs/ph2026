@@ -45,7 +45,6 @@ export function ChatWrapper({
       e.preventDefault()
       clearCache()
       // Vider aussi le localStorage et sessionStorage pour un nettoyage complet
-      localStorage.removeItem('visitedGroups')
       localStorage.removeItem('selectedGroupId')
       sessionStorage.removeItem('chat-messages-cache')
       // Rafraîchir la page
@@ -83,34 +82,6 @@ export function ChatWrapper({
     }
   }, [selectedGroupId])
   
-  
-  // Gérer les groupes visités
-  const [visitedGroups, setVisitedGroups] = useState<Set<string>>(new Set())
-  const [visitedGroupsLoaded, setVisitedGroupsLoaded] = useState(false)
-  
-  // Charger les groupes visités depuis localStorage après le montage
-  useEffect(() => {
-    const saved = localStorage.getItem('visitedGroups')
-    if (saved) {
-      try {
-        setVisitedGroups(new Set(JSON.parse(saved)))
-      } catch {
-        setVisitedGroups(new Set())
-      }
-    }
-    setVisitedGroupsLoaded(true)
-  }, [])
-  
-  // Marquer un groupe comme visité
-  useEffect(() => {
-    if (selectedGroupId && visitedGroupsLoaded && !visitedGroups.has(selectedGroupId)) {
-      const newVisited = new Set(visitedGroups)
-      newVisited.add(selectedGroupId)
-      setVisitedGroups(newVisited)
-      localStorage.setItem('visitedGroups', JSON.stringify(Array.from(newVisited)))
-    }
-  }, [selectedGroupId, visitedGroups, visitedGroupsLoaded])
-
   // Ne pas afficher l'interface tant que l'initialisation n'est pas terminée
   if (!isInitialized) {
     return (
@@ -144,11 +115,6 @@ export function ChatWrapper({
               <div className="flex-1">
                 <div className="flex items-center gap-2">
                   <span className="font-medium">{group.name}</span>
-                  {visitedGroupsLoaded && !visitedGroups.has(group.id) && (
-                    <span className="text-xs bg-green-500 text-white px-1.5 py-0.5 rounded">
-                      Nouveau
-                    </span>
-                  )}
                   {(() => {
                     const unreadCount = getUnreadCount(group.id)
                     if (unreadCount > 0) {
@@ -186,6 +152,7 @@ export function ChatWrapper({
                 className="h-full"
                 markChannelAsRead={markAsRead}
                 incrementUnreadCount={incrementUnreadCount}
+                unreadCount={getUnreadCount(selectedGroupId)}
               />
             </div>
           </>

@@ -65,7 +65,6 @@ export function GroupSlackMessages({ groups }: GroupSlackMessagesProps) {
         setError(prev => ({ ...prev, [groupId]: errorData.error || 'Erreur lors du chargement' }));
       }
     } catch (err) {
-      console.error('Error loading messages:', err);
       setError(prev => ({ ...prev, [groupId]: 'Erreur de connexion' }));
     } finally {
       setLoading(prev => ({ ...prev, [groupId]: false }));

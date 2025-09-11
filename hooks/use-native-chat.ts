@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { RealtimeChannel, RealtimePostgresChangesPayload } from '@supabase/supabase-js'
 import { useChatCache } from './use-chat-cache'
 import { formatSlackMessage } from '@/lib/slack-formatter'
+import { sortMessagesWithThreads } from '@/lib/message-sorting'
 
 // Types
 export interface ChatMessage {
@@ -123,6 +124,12 @@ export function useNativeChat(groupId: string | null, shouldIncrementUnread?: ()
   const chatCache = useChatCache()
   const { getFromCache, updateCache, addMessageToCache, updateMessageInCache, removeMessageFromCache, invalidateCache } = chatCache
   
+  // Créer des refs pour les fonctions du cache pour éviter les problèmes de dépendances
+  const updateMessageInCacheRef = useRef(updateMessageInCache)
+  useEffect(() => {
+    updateMessageInCacheRef.current = updateMessageInCache
+  }, [updateMessageInCache])
+  
   // Récupérer l'utilisateur actuel
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
@@ -175,17 +182,7 @@ export function useNativeChat(groupId: string | null, shouldIncrementUnread?: ()
           
           // Convertir en array et trier en respectant les threads
           const allMessages = Array.from(messageMap.values())
-          const sorted = allMessages.sort((a, b) => {
-            // Si c'est une réponse, utiliser la date du message parent pour le tri
-            const aDate = a.thread_ts ? 
-              (allMessages.find(m => m.id === a.thread_ts)?.created_at || a.created_at) : 
-              a.created_at
-            const bDate = b.thread_ts ? 
-              (allMessages.find(m => m.id === b.thread_ts)?.created_at || b.created_at) : 
-              b.created_at
-            
-            return new Date(bDate).getTime() - new Date(aDate).getTime()
-          })
+          const sorted = sortMessagesWithThreads(allMessages)
           
           // Mettre à jour le cache avec les messages combinés
           updateCache(groupId, sorted, data.has_more || false)
@@ -239,8 +236,6 @@ export function useNativeChat(groupId: string | null, shouldIncrementUnread?: ()
   const loadMessages = useCallback(async (before?: string, forceRefresh = false) => {
     if (!groupId) return
     
-    
-    
     // Si pas de before et pas de forceRefresh, essayer d'utiliser le cache
     if (!before && !forceRefresh) {
       const cached = getFromCache(groupId)
@@ -251,13 +246,20 @@ export function useNativeChat(groupId: string | null, shouldIncrementUnread?: ()
         setLoading(false)
         setError(null)
         
-        // Indiquer qu'on charge en arrière-plan
-        setLoadingInBackground(true)
+        // Calculer l'âge du cache (timestamp inclus dans CacheEntry)
+        const cacheAge = Date.now() - cached.timestamp
+        const CACHE_REFRESH_THRESHOLD = 30000 // 30 secondes
         
-        // Charger les nouveaux messages en arrière-plan
-        loadMessagesFromAPI(groupId, undefined, true).finally(() => {
-          setLoadingInBackground(false)
-        })
+        // Seulement rafraîchir en arrière-plan si le cache est ancien
+        if (cacheAge > CACHE_REFRESH_THRESHOLD) {
+          // Indiquer qu'on charge en arrière-plan
+          setLoadingInBackground(true)
+          
+          // Charger les nouveaux messages en arrière-plan
+          loadMessagesFromAPI(groupId, undefined, true).finally(() => {
+            setLoadingInBackground(false)
+          })
+        }
         return
       }
       // Pas de cache, on va charger depuis l'API avec un spinner
@@ -373,8 +375,6 @@ export function useNativeChat(groupId: string | null, shouldIncrementUnread?: ()
       
       const { message } = await response.json()
       
-      // LOG TEMPORAIRE pour déboguer
-      
       // Remplacer le message temporaire par le message réel
       if (tempMessageStored) {
         localMessagesRef.current.delete(tempMessageId)
@@ -473,7 +473,7 @@ export function useNativeChat(groupId: string | null, shouldIncrementUnread?: ()
         )
         // Mettre à jour le cache
         if (groupId) {
-          updateMessageInCache(groupId, messageId, msg => ({ 
+          updateMessageInCacheRef.current(groupId, messageId, msg => ({ 
             ...msg, 
             text: newText, 
             edited_at: new Date().toISOString() 
@@ -531,7 +531,7 @@ export function useNativeChat(groupId: string | null, shouldIncrementUnread?: ()
         )
         // Mettre à jour le cache
         if (groupId) {
-          updateMessageInCache(groupId, messageId, msg => ({ 
+          updateMessageInCacheRef.current(groupId, messageId, msg => ({ 
             ...msg, 
             deleted_at: new Date().toISOString(),
             text: '[Message supprimé]',
@@ -581,14 +581,13 @@ export function useNativeChat(groupId: string | null, shouldIncrementUnread?: ()
         localReactionChangesRef.current.delete(changeKey)
       }, 3000)
       
-      // Ne pas utiliser setMessages juste pour logger
-      
       setMessages(prev => {
         // IMPORTANT: Créer de nouveaux objets à TOUS les niveaux pour que React détecte les changements  
         const updated = prev.map(msg => {
           if (msg.id !== messageId) {
             return msg // Ne pas toucher aux autres messages
           }
+          
           const updatedReactions = msg.reactions?.map(reaction => {
             if (reaction.emoji === emoji) {
               // Retirer l'utilisateur actuel de la liste
@@ -615,6 +614,7 @@ export function useNativeChat(groupId: string | null, shouldIncrementUnread?: ()
           }
           return updatedMsg
         })
+        
         return updated
       })
       
@@ -625,7 +625,7 @@ export function useNativeChat(groupId: string | null, shouldIncrementUnread?: ()
         setTimeout(() => {
           const updatedMessage = messagesRef.current.find(m => m.id === messageId)
           if (updatedMessage) {
-            updateMessageInCache(groupId, messageId, () => updatedMessage)
+            updateMessageInCacheRef.current(groupId, messageId, () => updatedMessage)
             // Stocker le changement local en cas de rechargement imminent
             pendingLocalChangesRef.current.set(messageId, {
               reactions: updatedMessage.reactions
@@ -646,7 +646,7 @@ export function useNativeChat(groupId: string | null, shouldIncrementUnread?: ()
       setError(err instanceof Error ? err.message : 'Erreur inconnue')
       return false
     }
-  }, [groupId]) // Remove unstable dependencies
+  }, [groupId]) // Keep minimal dependencies
 
   // Ajouter une réaction
   const addReaction = useCallback(async (
@@ -702,6 +702,7 @@ export function useNativeChat(groupId: string | null, shouldIncrementUnread?: ()
         : 'Vous'
       
       // Mettre à jour l'état local immédiatement
+      
       setMessages(prev => {
         
         // IMPORTANT: Créer de nouveaux objets à TOUS les niveaux pour que React détecte les changements
@@ -776,7 +777,7 @@ export function useNativeChat(groupId: string | null, shouldIncrementUnread?: ()
         setTimeout(() => {
           const updatedMessage = messagesRef.current.find(m => m.id === messageId)
           if (updatedMessage) {
-            updateMessageInCache(groupId, messageId, () => updatedMessage)
+            updateMessageInCacheRef.current(groupId, messageId, () => updatedMessage)
             // Stocker le changement local en cas de rechargement imminent
             pendingLocalChangesRef.current.set(messageId, {
               reactions: updatedMessage.reactions
@@ -795,7 +796,7 @@ export function useNativeChat(groupId: string | null, shouldIncrementUnread?: ()
       setError(err instanceof Error ? err.message : 'Erreur inconnue')
       return false
     }
-  }, [groupId]) // Remove unstable dependencies to avoid re-renders
+  }, [groupId]) // Keep minimal dependencies
   
   // Signaler qu'on est en train de taper
   const setTyping = useCallback(async (isTyping: boolean) => {
@@ -911,8 +912,6 @@ export function useNativeChat(groupId: string | null, shouldIncrementUnread?: ()
   const reconnectWebSocket = useCallback(() => {
     if (!groupId || !channelRef.current) return
     
-    console.log('🔄 Tentative de reconnexion WebSocket...')
-    
     // Nettoyer l'ancienne connexion
     supabase.removeChannel(channelRef.current)
     
@@ -925,11 +924,9 @@ export function useNativeChat(groupId: string | null, shouldIncrementUnread?: ()
       })
       .subscribe((status) => {
         if (status === 'SUBSCRIBED') {
-          console.log('✅ WebSocket reconnecté')
           setWsConnected(true)
           lastMessageTimeRef.current = Date.now()
         } else {
-          console.log('❌ Échec reconnexion WebSocket:', status)
           setWsConnected(false)
         }
       })
@@ -946,24 +943,26 @@ export function useNativeChat(groupId: string | null, shouldIncrementUnread?: ()
         clearInterval(fallbackPollingRef.current)
       }
       
-      fallbackPollingRef.current = setInterval(() => {
-        // Polling adaptatif : plus fréquent si WebSocket down
-        const pollingInterval = wsConnected ? 60000 : 15000 // 1min si OK, 15s si KO
-        
-        // Vérifier s'il y a de nouveaux messages en background
-        loadMessagesFromAPI(groupId, undefined, true) // background refresh
-        
-        // Retry WebSocket si down depuis plus de 30s
-        if (!wsConnected && Date.now() - lastMessageTimeRef.current > 30000) {
-          if (reconnectTimeoutRef.current) {
-            clearTimeout(reconnectTimeoutRef.current)
+      // Seulement faire du polling si WebSocket est déconnecté
+      if (!wsConnected) {
+        fallbackPollingRef.current = setInterval(() => {
+          // Vérifier s'il y a de nouveaux messages en background SEULEMENT si WebSocket down
+          if (!wsConnected) {
+            loadMessagesFromAPI(groupId, undefined, true) // background refresh
           }
           
-          reconnectTimeoutRef.current = setTimeout(() => {
-            reconnectWebSocket()
-          }, 1000)
-        }
-      }, wsConnected ? 60000 : 15000)
+          // Retry WebSocket si down depuis plus de 30s
+          if (!wsConnected && Date.now() - lastMessageTimeRef.current > 30000) {
+            if (reconnectTimeoutRef.current) {
+              clearTimeout(reconnectTimeoutRef.current)
+            }
+            
+            reconnectTimeoutRef.current = setTimeout(() => {
+              reconnectWebSocket()
+            }, 1000)
+          }
+        }, 15000) // 15s si WebSocket KO
+      }
     }
     
     startFallbackPolling()
@@ -983,7 +982,6 @@ export function useNativeChat(groupId: string | null, shouldIncrementUnread?: ()
     if (!groupId) {
       return
     }
-    
     
     // Nettoyer l'ancienne connexion
     if (channelRef.current) {
@@ -1096,7 +1094,6 @@ export function useNativeChat(groupId: string | null, shouldIncrementUnread?: ()
               // Vérifier si le message existe déjà (pour éviter les doublons)
               const existingIndex = prev.findIndex(m => m.id === fullMessage.id)
               if (existingIndex >= 0) {
-                
                 const updated = [...prev]
                 // IMPORTANT: Toujours conserver les fichiers existants car l'API les envoie avant Realtime
                 const existingMessage = prev[existingIndex]
@@ -1107,7 +1104,6 @@ export function useNativeChat(groupId: string | null, shouldIncrementUnread?: ()
                   fullMessage.files = existingMessage.files
                 } else if (fullMessage.files && fullMessage.files.length > 0) {
                   // Si le nouveau message a des fichiers, les utiliser
-                } else {
                 }
                 
                 // Vérifier aussi le cache local pour les fichiers
@@ -1135,8 +1131,6 @@ export function useNativeChat(groupId: string | null, shouldIncrementUnread?: ()
                 
                 if (!finalFiles.length && localMessage?.files && localMessage.files.length > 0) {
                   finalFiles = localMessage.files
-                } else if (localMessage) {
-                } else {
                 }
                 
                 // Conserver aussi les autres propriétés importantes
@@ -1150,7 +1144,7 @@ export function useNativeChat(groupId: string | null, shouldIncrementUnread?: ()
                 
                 // Mettre à jour le cache avec le message mis à jour (pas l'original)
                 if (groupId) {
-                  updateMessageInCache(groupId, updatedMessage.id, () => updatedMessage)
+                  updateMessageInCacheRef.current(groupId, updatedMessage.id, () => updatedMessage)
                 }
                 return updated
               }
@@ -1184,22 +1178,10 @@ export function useNativeChat(groupId: string | null, shouldIncrementUnread?: ()
               
               if (localMessage?.files && localMessage.files.length > 0) {
                 fullMessage.files = localMessage.files
-              } else if (localMessage) {
-              } else {
               }
               
               // Ajouter et retrier en respectant les threads
-              const updated = [fullMessage, ...prev].sort((a, b) => {
-                // Si c'est une réponse, utiliser la date du message parent pour le tri
-                const aDate = a.thread_ts ? 
-                  (prev.find(m => m.id === a.thread_ts)?.created_at || a.created_at) : 
-                  a.created_at
-                const bDate = b.thread_ts ? 
-                  (prev.find(m => m.id === b.thread_ts)?.created_at || b.created_at) : 
-                  b.created_at
-                
-                return new Date(bDate).getTime() - new Date(aDate).getTime()
-              })
+              const updated = sortMessagesWithThreads([fullMessage, ...prev])
               
               // Incrémenter le compteur si l'utilisateur a scrollé vers le haut
               // Le hook useUnreadCounts ne gère PAS le groupe actif pour éviter les conflits
@@ -1213,7 +1195,6 @@ export function useNativeChat(groupId: string | null, shouldIncrementUnread?: ()
                     setTimeout(() => {
                       incrementUnreadCount(groupId)
                     }, 0)
-                  } else {
                   }
                 } else {
                 }
@@ -1223,7 +1204,6 @@ export function useNativeChat(groupId: string | null, shouldIncrementUnread?: ()
               if (groupId) {
                 addMessageToCache(groupId, fullMessage)
               }
-              
               
               return updated
             })
@@ -1243,7 +1223,6 @@ export function useNativeChat(groupId: string | null, shouldIncrementUnread?: ()
           
           // Si le message est supprimé, nettoyer les fichiers et réactions
           if (updatedMessage.deleted_at) {
-            
             setMessages(prev => {
               const updated = prev.map(msg => 
                 msg.id === updatedMessage.id 
@@ -1257,7 +1236,7 @@ export function useNativeChat(groupId: string | null, shouldIncrementUnread?: ()
               )
               // Mettre à jour le cache
               if (groupId) {
-                updateMessageInCache(groupId, updatedMessage.id, () => ({
+                updateMessageInCacheRef.current(groupId, updatedMessage.id, () => ({
                   ...updatedMessage,
                   files: [],
                   reactions: [],
@@ -1311,7 +1290,7 @@ export function useNativeChat(groupId: string | null, shouldIncrementUnread?: ()
               )
               // Mettre à jour le cache
               if (groupId) {
-                updateMessageInCache(groupId, fullMessage.id, () => fullMessage as ChatMessage)
+                updateMessageInCacheRef.current(groupId, fullMessage.id, () => fullMessage as ChatMessage)
               }
               return updated
             })
@@ -1346,29 +1325,130 @@ export function useNativeChat(groupId: string | null, shouldIncrementUnread?: ()
           table: 'chat_reactions'
         },
         async (payload: RealtimePostgresChangesPayload<any>) => {
-          const messageId = (payload.new as any)?.message_id || (payload.old as any)?.message_id
-          const emoji = (payload.new as any)?.emoji || (payload.old as any)?.emoji
-          const changeUserId = (payload.new as any)?.user_id || (payload.old as any)?.user_id
+          // Pour DELETE, Supabase ne renvoie pas les données par défaut
+          // On doit utiliser une approche différente
+          
+          let messageId: string | undefined
+          let emoji: string | undefined
+          let changeUserId: string | undefined
+          
+          if (payload.eventType === 'DELETE') {
+            // Pour DELETE, essayer de récupérer depuis old, mais si vide, on utilisera une autre approche
+            messageId = (payload.old as any)?.message_id
+            emoji = (payload.old as any)?.emoji
+            changeUserId = (payload.old as any)?.user_id
+            
+            // Si on n'a pas les données dans old (cas par défaut Supabase), 
+            // on va devoir recharger toutes les réactions pour tous les messages
+            if (!messageId) {
+              // On va parcourir tous les messages et recharger leurs réactions
+              const currentMessages = messagesRef.current
+              for (const msg of currentMessages) {
+                if (msg.reactions && msg.reactions.length > 0) {
+                  // Recharger les réactions pour ce message
+                  const { data: reactions } = await supabase
+                    .from('chat_reactions')
+                    .select('*')
+                    .eq('message_id', msg.id)
+                  
+                  if (reactions !== null) {
+                    // Grouper les réactions par emoji
+                    const reactionGroups: Record<string, any> = {}
+                    reactions.forEach(r => {
+                      if (!reactionGroups[r.emoji]) {
+                        reactionGroups[r.emoji] = {
+                          emoji: r.emoji,
+                          emoji_name: r.emoji_name,
+                          users: [],
+                          count: 0
+                        }
+                      }
+                      reactionGroups[r.emoji].users.push({ id: r.user_id, name: 'User' })
+                      reactionGroups[r.emoji].count++
+                    })
+                    
+                    // Mettre à jour le message
+                    setMessages(prev => prev.map(m => 
+                      m.id === msg.id 
+                        ? { ...m, reactions: Object.values(reactionGroups) }
+                        : m
+                    ))
+                  }
+                }
+              }
+              return
+            }
+          } else {
+            // Pour INSERT/UPDATE, les données sont dans new
+            const data = payload.new
+            messageId = (data as any)?.message_id
+            emoji = (data as any)?.emoji
+            changeUserId = (data as any)?.user_id
+          }
+          
           const eventType = payload.eventType === 'INSERT' ? 'add' : payload.eventType === 'DELETE' ? 'remove' : 'update'
+          
+          // Si on n'a pas les données nécessaires, on ignore
+          if (!messageId || !emoji) {
+            return
+          }
           
           // Vérifier si c'est un changement local qu'on a déjà traité
           const changeKey = `${messageId}-${emoji}-${changeUserId}-${eventType}`
+          
           if (localReactionChangesRef.current.has(changeKey)) {
             return
           }
           
-          // Si c'est notre propre changement mais pas marqué comme local (ne devrait pas arriver)
-          if (changeUserId === currentUserIdRef.current) {
-            return
-          }
-          
-          // Recharger le message pour mettre à jour ses réactions
+          // Charger seulement les réactions de ce message spécifique
           if (messageId) {
+            // Vérifier d'abord que ce message appartient bien à ce groupe
+            const messageExists = messagesRef.current.some(m => m.id === messageId)
+            if (!messageExists) {
+              return
+            }
+            
             // Petit délai pour laisser les autres événements arriver
             setTimeout(async () => {
               // Vérifier une dernière fois si ce n'est pas un changement local
               if (!localReactionChangesRef.current.has(changeKey)) {
-                await loadMessages(undefined, true)
+                // Récupérer seulement les réactions du message concerné
+                const { data: reactions } = await supabase
+                  .from('chat_reactions')
+                  .select('*')
+                  .eq('message_id', messageId)
+                
+                if (reactions) {
+                  // Grouper les réactions par emoji
+                  const reactionGroups: Record<string, any> = {}
+                  reactions.forEach(r => {
+                    if (!reactionGroups[r.emoji]) {
+                      reactionGroups[r.emoji] = {
+                        emoji: r.emoji,
+                        emoji_name: r.emoji_name,
+                        users: [],
+                        count: 0
+                      }
+                    }
+                    reactionGroups[r.emoji].users.push({ id: r.user_id, name: 'User' })
+                    reactionGroups[r.emoji].count++
+                  })
+                  
+                  // Mettre à jour seulement ce message
+                  setMessages(prev => prev.map(msg => 
+                    msg.id === messageId 
+                      ? { ...msg, reactions: Object.values(reactionGroups) }
+                      : msg
+                  ))
+                  
+                  // Mettre à jour le cache
+                  if (groupId) {
+                    updateMessageInCacheRef.current(groupId, messageId, msg => ({
+                      ...msg,
+                      reactions: Object.values(reactionGroups)
+                    }))
+                  }
+                }
               }
             }, 100)
           }

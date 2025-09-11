@@ -376,12 +376,10 @@ export const LexicalEditor = forwardRef<any, LexicalEditorProps>(({
   // Utiliser useEffect pour l'initialisation au lieu de initialConfig.editorState
   useEffect(() => {
     if (initialValue && initialValue.trim() && !hasInitialized) {
-      console.log('🚀 useEffect - Initializing editor with:', initialValue)
       // Attendre que l'éditeur soit monté et utiliser l'éditeur Lexical directement
       setTimeout(() => {
         const editor = (editorRef.current as any)?.__lexicalEditor
         if (editor) {
-          console.log('📄 Setting editor state via Lexical API')
           editor.update(() => {
             const root = $getRoot()
             root.clear()
@@ -401,7 +399,6 @@ export const LexicalEditor = forwardRef<any, LexicalEditorProps>(({
           // Fallback: définir directement le textContent
           const contentEditable = editorRef.current
           if (contentEditable && contentEditable.textContent === '') {
-            console.log('📄 Fallback: Setting textContent directly')
             contentEditable.textContent = initialValue
             setHasInitialized(true)
           }

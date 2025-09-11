@@ -32,7 +32,6 @@ export default function ModerationList({ initialMembers }: ModerationListProps) 
       
       // TODO: Send approval email to user
     } catch (error) {
-      console.error('Error approving member:', error)
       alert('Erreur lors de l\'approbation')
     } finally {
       setProcessingId(null)
@@ -66,7 +65,6 @@ export default function ModerationList({ initialMembers }: ModerationListProps) 
       
       // TODO: Send rejection email to user (optional)
     } catch (error) {
-      console.error('Error rejecting member:', error)
       alert('Erreur lors du refus')
     } finally {
       setProcessingId(null)

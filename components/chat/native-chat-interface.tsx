@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { useNativeChat } from '@/hooks/use-native-chat'
 import { shouldGroupMessages } from '@/lib/date-utils'
+import { sortMessagesWithThreads } from '@/lib/message-sorting'
 import EmojiPicker, { EmojiClickData } from 'emoji-picker-react'
 import { formatSlackMessage } from '@/lib/slack-formatter'
 import { Send, Paperclip, Edit2, Trash2, Reply, X, ChevronDown, ArrowDown, StopCircle } from 'lucide-react'
@@ -26,6 +27,7 @@ interface NativeChatInterfaceProps {
   className?: string
   markChannelAsRead?: (groupId: string) => void
   incrementUnreadCount?: (groupId: string) => void
+  unreadCount?: number
 }
 
 // Emojis courants pour les réactions rapides
@@ -44,7 +46,6 @@ const EditingWidget = ({ initialText, onSave, onCancel }: {
   const [saving, setSaving] = useState(false)
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
   const editorRef = useRef<any>(null)
-  
   
   // Mettre à jour le state quand initialText change
   useEffect(() => {
@@ -148,14 +149,14 @@ function NativeChatInterface({
   currentUserId,
   className,
   markChannelAsRead,
-  incrementUnreadCount
+  incrementUnreadCount,
+  unreadCount = 0
 }: NativeChatInterfaceProps) {
   const [mounted, setMounted] = useState(false)
   
   useEffect(() => {
     setMounted(true)
   }, [])
-
 
   // Refs pour le scroll - définis avant car utilisés dans les callbacks
   const scrollAreaRef = useRef<HTMLDivElement>(null)
@@ -192,6 +193,7 @@ function NativeChatInterface({
     markAsRead,
     loadMoreMessages
   } = useNativeChat(groupId, shouldIncrementUnread, incrementUnreadCount)
+  
   
 
   const [messageText, setMessageText] = useState('')
@@ -720,7 +722,7 @@ function NativeChatInterface({
   }
 
   // Rendu d'un message - mémorisé pour éviter les re-rendus
-  const renderMessage = useCallback((message: typeof messages[0], isReply = false, showHeader = true) => {
+  const renderMessage = (message: typeof messages[0], isReply = false, showHeader = true) => {
     const isCurrentUser = message.user_id === currentUserId
     const parentMessage = message.thread_ts ? getParentMessage(message.thread_ts) : null
     
@@ -867,6 +869,7 @@ function NativeChatInterface({
                 const hasReacted = reaction.users.some(u => u.id === currentUserId)
                 const popoverId = `${message.id}-${reaction.emoji}`
                 const shouldForceClose = forceClosePopover === popoverId
+                
                 
                 return (
                   <Popover 
@@ -1057,25 +1060,19 @@ function NativeChatInterface({
         )}
       </div>
     )
-  }, [currentUserId, messages, editingMessageId, editingText, showEmojiReactionPicker, mounted, updateMessage, deleteMessage, addReaction, removeReaction, setReplyingTo, setEditingMessageId, setEditingText, setShowEditingEmojiPicker, getParentMessage])
+  }
 
   // Fonction pour vérifier si deux messages doivent être groupés
 
-  // Dédupliquer les messages par ID au cas où
+  // Dédupliquer les messages par ID en gardant la dernière version
+  // IMPORTANT: On inverse puis re-inverse pour que la Map garde la DERNIÈRE occurrence de chaque ID
   const uniqueMessages = Array.from(
-    new Map(messages.map(msg => [msg.id, msg])).values()
-  )
+    new Map(messages.slice().reverse().map(msg => [msg.id, msg])).values()
+  ).reverse()
   
   
-  // Grouper les messages par thread et par utilisateur
-  // Trier les messages pour traiter les parents avant les réponses
-  const sortedMessages = uniqueMessages.sort((a, b) => {
-    // Messages sans thread_ts (parents) en premier
-    if (!a.thread_ts && b.thread_ts) return -1
-    if (a.thread_ts && !b.thread_ts) return 1
-    // Pour le reste, maintenir l'ordre original
-    return 0
-  })
+  // Trier les messages avec support des threads
+  const sortedMessages = sortMessagesWithThreads(uniqueMessages)
 
   const messageGroups = sortedMessages.reduce((acc, message, index) => {
     if (!message.thread_ts) {
@@ -1157,9 +1154,9 @@ function NativeChatInterface({
           variant="secondary"
         >
           <ArrowDown className="h-4 w-4" />
-          {newMessagesWhileScrolled > 0 && (
+          {unreadCount > 0 && (
             <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full min-w-[20px] h-5 flex items-center justify-center px-1">
-              {newMessagesWhileScrolled}
+              {unreadCount}
             </span>
           )}
         </Button>

@@ -198,24 +198,22 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ message: formattedMessage })
     }
     
-    // Construire la requête pour les messages - simplifiée d'abord
+    // Récupérer TOUS les messages du groupe en une seule requête
+    // Le tri sera fait côté client avec sortMessagesWithThreads
     let query = supabase
       .from('chat_messages')
       .select('*')
       .eq('group_id', groupId)
       .is('deleted_at', null)
-      .order('created_at', { ascending: false })
-      .limit(limit)
+      .order('created_at', { ascending: false }) // Récents d'abord pour la pagination
+      .limit(limit * 2) // Augmenter la limite pour inclure les réponses
     
     // Filtrer par thread si spécifié
     if (threadTs) {
       query = query.eq('thread_ts', threadTs)
-    } else {
-      // Pour la timeline principale, récupérer les messages principaux seulement d'abord
-      query = query.is('thread_ts', null)
     }
     
-    // Pagination
+    // Pagination basée sur created_at plutôt que sur un message spécifique
     if (before) {
       const { data: beforeMessage } = await supabase
         .from('chat_messages')
@@ -228,45 +226,19 @@ export async function GET(request: NextRequest) {
       }
     }
     
-    const { data: mainMessages, error: mainError } = await query
+    const { data: allMessages, error: messagesError } = await query
     
-    if (mainError) {
+    if (messagesError) {
       return NextResponse.json({ error: 'Erreur lors de la récupération des messages' }, { status: 500 })
     }
     
-    // Si on n'est pas dans un thread spécifique, récupérer aussi les réponses
-    let allMessages = [...(mainMessages || [])]
-    
-    if (!threadTs && mainMessages && mainMessages.length > 0) {
-      // Récupérer toutes les réponses des messages principaux
-      const messageIds = mainMessages.map(m => m.id)
-      console.log('DEBUG: Recherche réponses pour messages:', messageIds)
-      const { data: threadMessages, error: threadError } = await supabase
-        .from('chat_messages')
-        .select('*')
-        .in('thread_ts', messageIds)
-        .is('deleted_at', null)
-        .order('created_at', { ascending: false })
-      
-      if (threadError) {
-        console.log('DEBUG: Erreur récupération réponses:', threadError)
-      } else {
-        console.log('DEBUG: Réponses trouvées:', threadMessages?.length || 0, '- NEW VERSION')
-        if (threadMessages) {
-          threadMessages.forEach((t, index) => {
-          console.log(`DEBUG: Réponse ${index + 1}:`, { id: t.id, thread_ts: t.thread_ts, text: t.text?.substring(0, 30) })
-        })
-          allMessages = [...mainMessages, ...threadMessages]
-        }
-      }
-    }
-    
     // Enrichir les messages avec les données associées
-    const formattedMessages = await Promise.all(allMessages.map(msg => enrichMessage(msg, supabase)))
+    const formattedMessages = await Promise.all((allMessages || []).map(msg => enrichMessage(msg, supabase)))
     
-    // Mettre à jour le statut de lecture
-    if (mainMessages && mainMessages.length > 0) {
-      const latestMessage = mainMessages[0]
+    // Mettre à jour le statut de lecture avec le message le plus récent
+    if (allMessages && allMessages.length > 0) {
+      // Trouver le message le plus récent (le premier avec le tri DESC)
+      const latestMessage = allMessages[0]
       await supabase
         .from('chat_read_status')
         .upsert({
@@ -282,7 +254,7 @@ export async function GET(request: NextRequest) {
     
     return NextResponse.json({ 
       messages: formattedMessages || [],
-      has_more: mainMessages?.length === limit
+      has_more: allMessages?.length === limit * 2 // Nouvelle limite
     })
     
   } catch (error) {
